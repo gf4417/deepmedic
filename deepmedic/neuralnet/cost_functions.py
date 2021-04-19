@@ -55,6 +55,58 @@ def dsc(p_y_given_x_train, y_gt, eps=1e-5):
     cost = 1. - av_class_dsc
     return cost
 
+def ace(p_y_given_x_train, y_gt, eps=1e-5):
+    # p_y_given_x_train : tensor5 [batchSize, classes, r, c, z]
+    # y: T.itensor4('y'). Dimensions [batchSize, r, c, z]
+    # Adaptive corss entropy:
+    y_one_hot = tf.one_hot( indices=y_gt, depth=tf.shape(p_y_given_x_train)[1], axis=1, dtype="float32" )
+    
+    # Get all classes in the gt
+    classes_in_gt = []
+    for i in range(tf.shape(p_y_given_x_train)[1]):
+        elements_equal_to_value = tf.equal(y_gt, i)
+        as_ints = tf.cast(elements_equal_to_value, tf.int32)
+        count = tf.reduce_sum(as_ints)
+        if count > 0:
+            classes_in_gt.append(i) 
+    #print("Classes:", classes_in_gt)
+    
+    # For each class not in gt set value to 1 in one hot encoding in all places where == 1 for class 0 (background)
+    transpose_y_one_hot = tf.transpose(y_one_hot, perm=[1,0,2,3,4])
+    unstacked_transpose_y_one_hot = tf.unstack(transpose_y_one_hot)
+    #print("Unstacked:", unstacked_transpose_y_one_hot)
+    for i in range(tf.shape(p_y_given_x_train)[1]):
+        if i not in classes_in_gt:
+            unstacked_transpose_y_one_hot[i]  = tf.where(tf.not_equal(transpose_y_one_hot[0], [1]), x=transpose_y_one_hot[i] , y=[1])
+    stacked_transpose_y_one_hot = tf.stack(unstacked_transpose_y_one_hot)
+    print(stacked_transpose_y_one_hot)
+    updated_y_one_hot = tf.transpose(stacked_transpose_y_one_hot, perm=[1,0,2,3,4])
+
+    # Apply one hot encoding mask to genetated probabilities
+    p_y_given_x_train_ace = p_y_given_x_train * updated_y_one_hot
+    
+    # Calculate the Adaptive Cross Entropy
+    # TODO: Add weighthing
+    #weightPerClass5D = tf.reshape(weightPerClass, shape=[1, tf.shape(p_y_given_x_train)[1], 1, 1, 1])
+    #weighted_log_p_y_given_x_train = log_p_y_given_x_train * weightPerClass5D
+
+    # for each voxel sum along the classes
+    pixel_sum = tf.reduce_sum(tf.transpose(neg_log_p_y_given_x_train_ace, perm=[0,2,3,4,1]), 4)
+    #print("Pixel_sum:", pixel_sum)
+
+    # Negative log, for entropy
+    log_p_y_given_x_train_ace = tf.math.log(pixel_sum)
+    neg_log_p_y_given_x_train_ace = tf.math.negative(log_p_y_given_x_train_ace)
+
+    # Average values for all voxels
+    voxel_mean = tf.reduce_mean(neg_log_p_y_given_x_train_ace, 1)
+    #print("Voxel mean:", voxel_mean)
+    
+    # Average values across batch
+    batch_mean = tf.reduce_mean(voxel_mean)
+    #print("batch_mean:",batch_mean)
+    return batch_mean
+
 def cost_L1(prms):
     # prms: list of tensors
     cost = 0
