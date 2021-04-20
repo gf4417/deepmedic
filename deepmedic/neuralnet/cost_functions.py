@@ -62,24 +62,20 @@ def ace(p_y_given_x_train, y_gt, eps=1e-5):
     y_one_hot = tf.one_hot( indices=y_gt, depth=tf.shape(p_y_given_x_train)[1], axis=1, dtype="float32" )
     
     # Get all classes in the gt
-    classes_in_gt = []
-    for i in range(tf.shape(p_y_given_x_train)[1]):
-        elements_equal_to_value = tf.equal(y_gt, i)
-        as_ints = tf.cast(elements_equal_to_value, tf.int32)
-        count = tf.reduce_sum(as_ints)
-        if count > 0:
-            classes_in_gt.append(i) 
-    #print("Classes:", classes_in_gt)
+    num_classes = len(tf.unstack(p_y_given_x_train, axis=1))
+    unique_classes, _ = tf.unique(tf.reshape(y_gt, [-1]))
     
     # For each class not in gt set value to 1 in one hot encoding in all places where == 1 for class 0 (background)
     transpose_y_one_hot = tf.transpose(y_one_hot, perm=[1,0,2,3,4])
-    unstacked_transpose_y_one_hot = tf.unstack(transpose_y_one_hot)
+    unstacked_transpose_y_one_hot = [transpose_y_one_hot[0]]
     #print("Unstacked:", unstacked_transpose_y_one_hot)
-    for i in range(tf.shape(p_y_given_x_train)[1]):
-        if i not in classes_in_gt:
-            unstacked_transpose_y_one_hot[i]  = tf.where(tf.not_equal(transpose_y_one_hot[0], [1]), x=transpose_y_one_hot[i] , y=[1])
+    for i in range(num_classes - 1):
+        f1 = lambda: tf.identity(transpose_y_one_hot[i+1])
+        f2 = lambda: tf.identity(tf.where(tf.not_equal(transpose_y_one_hot[0], 1), x=transpose_y_one_hot[i+1] , y=[1]))
+        condition = tf.reduce_any(tf.math.equal(unique_classes, tf.constant(i+1)))
+        unstacked_transpose_y_one_hot.append(tf.cond(condition, f1, f2))
     stacked_transpose_y_one_hot = tf.stack(unstacked_transpose_y_one_hot)
-    print(stacked_transpose_y_one_hot)
+    #print(stacked_transpose_y_one_hot)
     updated_y_one_hot = tf.transpose(stacked_transpose_y_one_hot, perm=[1,0,2,3,4])
 
     # Apply one hot encoding mask to genetated probabilities
@@ -91,7 +87,7 @@ def ace(p_y_given_x_train, y_gt, eps=1e-5):
     #weighted_log_p_y_given_x_train = log_p_y_given_x_train * weightPerClass5D
 
     # for each voxel sum along the classes
-    pixel_sum = tf.reduce_sum(tf.transpose(neg_log_p_y_given_x_train_ace, perm=[0,2,3,4,1]), 4)
+    pixel_sum = tf.reduce_sum(tf.transpose(p_y_given_x_train_ace, perm=[0,2,3,4,1]), 4)
     #print("Pixel_sum:", pixel_sum)
 
     # Negative log, for entropy
