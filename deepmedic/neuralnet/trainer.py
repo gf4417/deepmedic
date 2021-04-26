@@ -116,6 +116,10 @@ class Trainer(object):
             cost += self._losses_and_weights["dsc"] * cfs.dsc(p_y_given_x, y_gt)
         if "ace" in self._losses_and_weights and self._losses_and_weights["ace"] is not None:
             cost += self._losses_and_weights["ace"] * cfs.ace(p_y_given_x, y_gt)
+        if "ace_w" in self._losses_and_weights and self._losses_and_weights["ace_w"] is not None:
+            log.print3("COST: Using adaptive cross entropy with weight: " +str(self._losses_and_weights["ace_w"]))
+            w_per_cl_vec = self._compute_w_per_class_vector_for_xentr(self._net.num_classes, y_gt)
+            cost += self._losses_and_weights["ace_w"] * cfs.ace(p_y_given_x, y_gt, weightPerClass=w_per_cl_vec)
             
         cost_L1_reg = self._L1_reg_weight * cfs.cost_L1(self._net.params_for_L1_L2_reg())
         cost_L2_reg = self._L2_reg_weight * cfs.cost_L2(self._net.params_for_L1_L2_reg())

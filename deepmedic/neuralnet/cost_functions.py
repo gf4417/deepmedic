@@ -53,9 +53,9 @@ def dsc(p_y_given_x_train, y_gt, eps=1e-5):
     dsc = (numer + eps) / (denom + eps) # eps in both num/den => dsc=1 when class missing.
     av_class_dsc = tf.reduce_mean(dsc) # Along the class-axis. Mean DSC of classes. 
     cost = 1. - av_class_dsc
-    return cost
+    return Cost
 
-def ace(p_y_given_x_train, y_gt, eps=1e-5):
+def ace(p_y_given_x_train, y_gt, eps=1e-5, weightPerClass=None):
     # p_y_given_x_train : tensor5 [batchSize, classes, r, c, z]
     # y: T.itensor4('y'). Dimensions [batchSize, r, c, z]
     # Adaptive corss entropy:
@@ -83,11 +83,12 @@ def ace(p_y_given_x_train, y_gt, eps=1e-5):
     
     # Calculate the Adaptive Cross Entropy
     # TODO: Add weighthing
-    #weightPerClass5D = tf.reshape(weightPerClass, shape=[1, tf.shape(p_y_given_x_train)[1], 1, 1, 1])
-    #weighted_log_p_y_given_x_train = log_p_y_given_x_train * weightPerClass5D
+    if weightPerClass is not None:
+        weightPerClass5D = tf.reshape(weightPerClass, shape=[1, tf.shape(p_y_given_x_train)[1], 1, 1, 1])
+        weighted_log_p_y_given_x_train = p_y_given_x_train_ace * weightPerClass5D
 
     # for each voxel sum along the classes
-    pixel_sum = tf.reduce_sum(tf.transpose(p_y_given_x_train_ace, perm=[0,2,3,4,1]), 4)
+    pixel_sum = tf.reduce_sum(tf.transpose(weighted_log_p_y_given_x_train, perm=[0,2,3,4,1]), 4)
     #print("Pixel_sum:", pixel_sum)
 
     # Negative log, for entropy
