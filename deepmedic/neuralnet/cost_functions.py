@@ -55,9 +55,48 @@ def dsc(p_y_given_x_train, y_gt, eps=1e-5):
     cost = 1. - av_class_dsc
     return Cost
 
-def ace(p_y_given_x_train, y_gt, eps=1e-5, weightPerClass=None):
+def ace(p_y_given_x_train, y_gt, y_data=None, eps=1e-5, weightPerClass=None):
     # p_y_given_x_train : tensor5 [batchSize, classes, r, c, z]
-    # y: T.itensor4('y'). Dimensions [batchSize, r, c, z]
+    # y_gt: T.itensor4('y'). Dimensions [batchSize, r, c, z]
+    # y_data: ... [batchsize, classes] 
+    # Adaptive corss entropy:
+    # Get one hot encoding for ground truth. 
+    y_one_hot = tf.one_hot( indices=y_gt, depth=tf.shape(p_y_given_x_train)[1], axis=1, dtype="float32" )
+    #print(p_y_given_x_train)
+
+    # Get sum of weights for all overlapping classes excluding the background
+    if y_data is None:
+        p_y_given_x_train_overlapping = tf.transpose(tf.transpose(p_y_given_x_train, perm=[2,3,4,0,1]) * [0.0], perm=[3,4,0,1,2])
+    else:
+        p_y_given_x_train_overlapping = tf.transpose(tf.transpose(p_y_given_x_train, perm=[2,3,4,0,1]) * tf.cast(y_data, "float32"), perm=[3,4,0,1,2])
+    sum_p_y_given_x_train_overlapping = tf.reduce_sum(p_y_given_x_train_overlapping, 1)
+    #print("Sum out", sum_out)
+    
+    # Cross Entropy Value for each pixel
+    p_y_given_x_train_pixel = p_y_given_x_train * y_one_hot
+    #print("p_y_given_x_train_ace", p_y_given_x_train_ace)
+    pixel_sum = tf.reduce_sum(tf.transpose(p_y_given_x_train_pixel, perm=[0,2,3,4,1]), 4)
+    #print("pixel_sum", pixel_sum)
+    pixel_sum_with_sum_overlapping = pixel_sum + sum_p_y_given_x_train_overlapping
+    #print(addition)
+
+    # Negative log, for entropy
+    log_p_y_given_x_train_ace = tf.math.log(pixel_sum_with_sum_overlapping)
+    neg_log_p_y_given_x_train_ace = tf.math.negative(log_p_y_given_x_train_ace)
+
+    # Average values for all voxels
+    voxel_mean = tf.reduce_mean(neg_log_p_y_given_x_train_ace, 1)
+    #print("Voxel mean:", voxel_mean)
+    
+    # Average values across batch
+    batch_mean = tf.reduce_mean(voxel_mean)
+    #print("batch_mean:",batch_mean)
+    return batch_mean
+
+
+def ace_old(p_y_given_x_train, y_gt, eps=1e-5, weightPerClass=None):
+    # p_y_given_x_train : tensor5 [batchSize, classes, r, c, z]
+    # y_gt: T.itensor4('y'). Dimensions [batchSize, r, c, z]
     # Adaptive corss entropy:
     y_one_hot = tf.one_hot( indices=y_gt, depth=tf.shape(p_y_given_x_train)[1], axis=1, dtype="float32" )
     
