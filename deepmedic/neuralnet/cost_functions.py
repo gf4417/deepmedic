@@ -61,37 +61,47 @@ def ace(p_y_given_x_train, y_gt, y_data=None, eps=1e-5, weightPerClass=None):
     # y_data: ... [batchsize, classes] 
     # Adaptive corss entropy:
     # Get one hot encoding for ground truth. 
-    y_one_hot = tf.one_hot( indices=y_gt, depth=tf.shape(p_y_given_x_train)[1], axis=1, dtype="float32" )
+    n_classes = tf.shape(p_y_given_x_train)[1]
+    y_one_hot = tf.one_hot( indices=y_gt, depth=n_classes, axis=1, dtype="float32" )
     #print(p_y_given_x_train)
 
-    # Get sum of weights for all overlapping classes excluding the background
+    #Get sum of propabilities for all overlapping classes excluding the background
     if y_data is None:
         p_y_given_x_train_overlapping = tf.transpose(tf.transpose(p_y_given_x_train, perm=[2,3,4,0,1]) * [0.0], perm=[3,4,0,1,2])
     else:
-        p_y_given_x_train_overlapping = tf.transpose(tf.transpose(p_y_given_x_train, perm=[2,3,4,0,1]) * tf.cast(y_data, "float32"), perm=[3,4,0,1,2])
-    sum_p_y_given_x_train_overlapping = tf.reduce_sum(p_y_given_x_train_overlapping, 1)
+        pixel_is_backgr = tf.equal(y_gt, 0)
+        p_non_overlapping_else_0 = p_y_given_x_train * tf.reshape(tf.cast(y_data, "float32"), shape=[-1, n_classes, 1, 1, 1])
+        p_non_overlapping_in_location_of_background_pixel_else_0 = p_non_overlapping_else_0 * tf.expand_dims(tf.cast(pixel_is_backgr, "float32"), axis=1)
+
+        # p_y_given_x_train_overlapping = tf.transpose(tf.transpose(p_y_given_x_train, perm=[2,3,4,0,1]) * tf.cast(y_data, "float32"), perm=[3,4,0,1,2])
+    #sum_p_y_given_x_train_overlapping = tf.reduce_sum(p_y_given_x_train_overlapping, 1) # [batchSize, r, c, z]. Sum over all non-overlaping classes (except background)
+    sum_p_non_overlapping_in_loc_of_backgr = tf.reduce_sum(p_non_overlapping_in_location_of_background_pixel_else_0, axis=1)
     #print("Sum out", sum_out)
     
     # Cross Entropy Value for each pixel
-    p_y_given_x_train_pixel = p_y_given_x_train * y_one_hot
+    p_of_correct_class_train_pixel = p_y_given_x_train * y_one_hot
     #print("p_y_given_x_train_ace", p_y_given_x_train_ace)
-    pixel_sum = tf.reduce_sum(tf.transpose(p_y_given_x_train_pixel, perm=[0,2,3,4,1]), 4)
+    p_correct_class = tf.reduce_sum(p_of_correct_class_train_pixel, axis=1)  # [batchsize, r, c, z], float32 pred prob of correct class
+    #p_correct_class = tf.gather(p_y_given_x_train, indices=y_gt, axis=1)  # Equivalent to p_y_given_x_train[:, y_gt, :, :, :] in numpy. Shape [batchsize, r, c, z]
     #print("pixel_sum", pixel_sum)
-    pixel_sum_with_sum_overlapping = pixel_sum + sum_p_y_given_x_train_overlapping
+    p_correct_class_with_non_overlap_added_to_backgr = p_correct_class + sum_p_non_overlapping_in_loc_of_backgr  # [batchsize, r, c, z] + [batchsize, t, c, z] => for each pixel => p_correct_class + p_non_overlapping_in_location_of_background_pixel.
     #print(addition)
 
     # Negative log, for entropy
-    log_p_y_given_x_train_ace = tf.math.log(pixel_sum_with_sum_overlapping)
-    neg_log_p_y_given_x_train_ace = tf.math.negative(log_p_y_given_x_train_ace)
+    log_p_correct_class = tf.math.log(p_correct_class_with_non_overlap_added_to_backgr + eps)
+    neg_log_p = tf.math.negative(log_p_correct_class)
 
     # Average values for all voxels
-    voxel_mean = tf.reduce_mean(neg_log_p_y_given_x_train_ace, 1)
+    mean_loss_over_pixels_per_sample = tf.reduce_mean(neg_log_p, axis=[1,2,3])
     #print("Voxel mean:", voxel_mean)
     
     # Average values across batch
-    batch_mean = tf.reduce_mean(voxel_mean)
+    mean_loss_over_batch = tf.reduce_mean(mean_loss_over_pixels_per_sample)
     #print("batch_mean:",batch_mean)
-    return batch_mean
+
+    # batch_mean = is_database_1 * standard_cross_entropy + is_database_2 * (ce_for_overlapping + y_gt[0] log(p_non_overlapping_else_0))
+
+    return mean_loss_over_batch
 
 
 def ace_old(p_y_given_x_train, y_gt, eps=1e-5, weightPerClass=None):

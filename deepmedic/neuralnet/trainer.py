@@ -371,7 +371,7 @@ class Trainer(object):
         self._change_lr_to(log, sessionTf, new_lr)
         
         
-    ## AUTO SCHEDULE specific ##    
+    ## AUTO SCHEDULE specific ##   
     def _run_auto_sched_updates(self, log, sessionTf):
         self._check_valid_func_call_for_lr_sched(log, ['auto'])
         num_epochs_trained = self._num_epochs_trained_tfv.eval(session=sessionTf)
