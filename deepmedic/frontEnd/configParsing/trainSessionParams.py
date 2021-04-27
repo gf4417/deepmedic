@@ -522,7 +522,7 @@ class TrainSessionParameters(object):
             else [[False] * n_classes] * len(self.data_folder_names)
         
         assert len(self.data_folder_names) == len(self.background_classes)
-        assert [n_classes == len(i) for i in self.background_classes].all() 
+        assert all([n_classes == len(i) for i in self.background_classes])
 
 
     def _backwards_compat_with_deprecated_cfg(self, cfg):
