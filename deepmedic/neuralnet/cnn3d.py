@@ -115,6 +115,7 @@ class Cnn3d(object):
         log.print3("...Building the training function...")
         
         y_gt = self._output_gt_tensor_feeds['train']['y_gt']
+        y_bg_cl = self._output_gt_tensor_feeds['train']['y_bg_cl']
         
         #================BATCH NORMALIZATION ROLLING AVERAGE UPDATES======================
         updates = updates_of_params_wrt_total_cost + self._get_update_ops_for_bn_moving_avg()
@@ -131,6 +132,7 @@ class Cnn3d(object):
         for subpath_i in range(self.numSubsPaths) : # if there are subsampled paths...
             self._feeds_main['train']['x_sub_'+str(subpath_i)] = inp_plchldrs['x_sub_'+str(subpath_i)]
         self._feeds_main['train']['y_gt'] = y_gt
+        self._feeds_main['train']['y_bg_cl'] = y_bg_cl
         
         log.print3("Done.")
         
@@ -353,6 +355,8 @@ class Cnn3d(object):
         # =============== BUILDING FINISHED - BELOW IS TEMPORARY ========================    
         self._output_gt_tensor_feeds['train']['y_gt'] = tf.compat.v1.placeholder(dtype="int32", shape=[None, None, None, None], name="y_train")
         self._output_gt_tensor_feeds['val']['y_gt'] = tf.compat.v1.placeholder(dtype="int32", shape=[None, None, None, None], name="y_val")
+        
+        self._output_gt_tensor_feeds['train']['y_bg_cl'] = tf.compat.v1.placeholder(dtype="bool", shape=[None, None], name="y_train_bg_cl")
         
         log.print3("Finished building the CNN's model.")
         

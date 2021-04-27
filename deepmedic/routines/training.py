@@ -31,7 +31,8 @@ def process_in_batches(log,
                        cnn3d,
                        acc_monitor_ep,
                        channs_samples_per_path,
-                       lbls_samples_per_path):
+                       lbls_samples_per_path,
+                       bg_classes_per_path):
     # Processes batches of subepoch. Performs training or validation. Collects performance metrics.
 
     costs_of_batches = []
@@ -57,6 +58,7 @@ def process_in_batches(log,
                 x_batch_sub_path = channs_samples_per_path[subs_path_i + 1][min_idx_batch: max_idx_batch]
                 feeds_dict.update({feeds['x_sub_' + str(subs_path_i)]: x_batch_sub_path})
             feeds_dict.update({feeds['y_gt']: lbls_samples_per_path[min_idx_batch: max_idx_batch]})
+            feeds_dict.update({feeds['y_bg_cl']: bg_classes_per_path[min_idx_batch: max_idx_batch]})
             # Training step. Returns a list containing the results of fetched ops.
             results_of_run = sessionTf.run(fetches=list_of_ops, feed_dict=feeds_dict)
 
@@ -168,6 +170,11 @@ def do_training(sessionTf,
                 # -------- Pre-processing ------
                 pad_input,
                 norm_prms,
+                
+                # -------- ACE --------
+                data_folder_names,
+                background_classes,
+
                 #--------- Sampling Hyperparamas -----
                 inp_shapes_per_path_train,
                 inp_shapes_per_path_val,
@@ -197,7 +204,9 @@ def do_training(sessionTf,
                             pad_input,
                             norm_prms,
                             augm_img_prms,
-                            augm_sample_prms
+                            augm_sample_prms,
+                            data_folder_names,
+                            background_classes
                             )
     args_for_sampling_val = (log,
                              "val",
@@ -217,7 +226,9 @@ def do_training(sessionTf,
                              pad_input,
                              norm_prms,
                              None,  # no augmentation in val.
-                             None  # no augmentation in val.
+                             None,  # no augmentation in val.
+                             data_folder_names,
+                             background_classes
                              )
 
     sampling_job_submitted_train = False
@@ -268,10 +279,12 @@ def do_training(sessionTf,
                         log.print3(id_str + " NO MULTIPROC: Sampling for subepoch #" + str(subep) +\
                                    " [VALIDATION] will be done by main thread.")
                         (channs_samples_per_path_val,
-                         lbls_samples_per_path_val) = get_samples_for_subepoch(*args_for_sampling_val)
+                         lbls_samples_per_path_val,
+                         bg_classes_per_path_val) = get_samples_for_subepoch(*args_for_sampling_val)
                     elif sampling_job_submitted_val:  # done parallel with training of previous epoch.
                         (channs_samples_per_path_val,
-                         lbls_samples_per_path_val) = sampling_job_val.get()
+                         lbls_samples_per_path_val,
+                         bg_classes_per_path_val) = sampling_job_val.get()
                         sampling_job_submitted_val = False
                     else:  # Not previously submitted in case of first epoch or after a full-volumes validation.
                         assert subep == 0
@@ -279,7 +292,8 @@ def do_training(sessionTf,
                                    ", submitting sampling job for next [VALIDATION].")
                         sampling_job_val = mp_pool.apply_async(get_samples_for_subepoch, args_for_sampling_val)
                         (channs_samples_per_path_val,
-                         lbls_samples_per_path_val) = sampling_job_val.get()
+                         lbls_samples_per_path_val,
+                         bg_classes_per_path_val) = sampling_job_val.get()
                         sampling_job_submitted_val = False
 
                     # ----------- SUBMIT PARALLEL JOB TO GET TRAINING DATA FOR NEXT TRAINING -----------------
@@ -302,7 +316,8 @@ def do_training(sessionTf,
                                        cnn3d,
                                        acc_monitor_ep_val,
                                        channs_samples_per_path_val,
-                                       lbls_samples_per_path_val)
+                                       lbls_samples_per_path_val,
+                                       bg_classes_per_path_val)
                     log.print3("TIMING: Validation on batches of subepoch #" + str(subep) +\
                                " lasted: {0:.1f}".format(time.time() - start_time_val_subep) + " secs.")
 
@@ -311,10 +326,12 @@ def do_training(sessionTf,
                     log.print3(id_str + " NO MULTIPROC: Sampling for subepoch #" + str(subep) +\
                                " [TRAINING] will be done by main thread.")
                     (channs_samples_per_path_tr,
-                     lbls_samples_per_path_tr) = get_samples_for_subepoch(*args_for_sampling_tr)
+                     lbls_samples_per_path_tr,
+                     bg_classes_per_path_tr) = get_samples_for_subepoch(*args_for_sampling_tr)
                 elif sampling_job_submitted_train:  # done parallel with train/val of previous epoch.
                     (channs_samples_per_path_tr,
-                     lbls_samples_per_path_tr) = sampling_job_tr.get()
+                     lbls_samples_per_path_tr,
+                     bg_classes_per_path_tr) = sampling_job_tr.get()
                     sampling_job_submitted_train = False
                 else:  # Not previously submitted in case of first epoch or after a full-volumes validation.
                     assert subep == 0
@@ -322,7 +339,8 @@ def do_training(sessionTf,
                                ", submitting sampling job for next [TRAINING].")
                     sampling_job_tr = mp_pool.apply_async(get_samples_for_subepoch, args_for_sampling_tr)
                     (channs_samples_per_path_tr,
-                     lbls_samples_per_path_tr) = sampling_job_tr.get()
+                     lbls_samples_per_path_tr,
+                     bg_classes_per_path_tr) = sampling_job_tr.get()
                     sampling_job_submitted_train = False
 
                 # ----- SUBMIT PARALLEL JOB TO GET VAL / TRAIN (if no val) DATA FOR NEXT SUBEPOCH -----
@@ -351,7 +369,8 @@ def do_training(sessionTf,
                                    cnn3d,
                                    acc_monitor_ep_tr,
                                    channs_samples_per_path_tr,
-                                   lbls_samples_per_path_tr)
+                                   lbls_samples_per_path_tr,
+                                   bg_classes_per_path_tr)
                 log.print3("TIMING: Training on batches of this subepoch #" + str(subep) +\
                            " lasted: {0:.1f}".format(time.time() - start_time_train_subep) + " secs.")
 

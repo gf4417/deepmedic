@@ -122,6 +122,10 @@ class TrainConfig(Config):
     INT_AUGM_SHIF_MUSTD = "sampleIntAugmShiftWithMuAndStd"
     INT_AUGM_MULT_MUSTD = "sampleIntAugmMultiWithMuAndStd"
     OLD_AUGM_SAMPLE_PRMS_TR = "augm_params_tr"
+
+    # ======== ADDED. gf4417 =========
+    DATA_FOLDER_NAMES = "dataFolderNames"
+    BACKGROUND_CLASSES = "backgroundClasses"
     
     def __init__(self, abs_path_to_cfg):
         Config.__init__(self, abs_path_to_cfg)

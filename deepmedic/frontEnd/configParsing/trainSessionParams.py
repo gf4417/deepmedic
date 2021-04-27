@@ -515,6 +515,13 @@ class TrainSessionParameters(object):
                 inds_fms_per_pathtype_per_layer_to_save (Repeat subsampled!)
         """
 
+        # Adaptive Cross Entropy Variables
+        self.data_folder_names = cfg[cfg.DATA_FOLDER_NAMES] if cfg[cfg.DATA_FOLDER_NAMES] is not None else []
+        self.background_classes = cfg[cfg.BACKGROUND_CLASSES] \
+            if (cfg[cfg.BACKGROUND_CLASSES] is not None and cfg[cfg.BACKGROUND_CLASSES] != []) \
+            else [[False] * n_classes] * len(self.data_folder_names)
+
+
     def _backwards_compat_with_deprecated_cfg(self, cfg):
         # Augmentation
         if cfg[cfg.REFL_AUGM_PER_AXIS] is not None:
@@ -747,7 +754,11 @@ class TrainSessionParameters(object):
                 
                 # -------- Pre-Processing ------
                 self.pad_input,
-                self.norm_prms
+                self.norm_prms,
+
+                # -------- ACE --------
+                self.data_folder_names,
+                self.background_classes
                 ]
         return args
 

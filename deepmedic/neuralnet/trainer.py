@@ -104,6 +104,7 @@ class Trainer(object):
         # Cost functions
         cost = 0
         y_gt = self._net._output_gt_tensor_feeds['train']['y_gt']
+        y_bg_cl = self._net._output_gt_tensor_feeds['train']['y_bg_cl']
         if "xentr" in self._losses_and_weights and self._losses_and_weights["xentr"] is not None:
             log.print3("COST: Using cross entropy with weight: " +str(self._losses_and_weights["xentr"]))
             w_per_cl_vec = self._compute_w_per_class_vector_for_xentr(self._net.num_classes, y_gt)
@@ -115,7 +116,8 @@ class Trainer(object):
             log.print3("COST: Using dsc loss with weight: " +str(self._losses_and_weights["dsc"]))
             cost += self._losses_and_weights["dsc"] * cfs.dsc(p_y_given_x, y_gt)
         if "ace" in self._losses_and_weights and self._losses_and_weights["ace"] is not None:
-            cost += self._losses_and_weights["ace"] * cfs.ace(p_y_given_x, y_gt)
+            log.print3("ACE: y_bg_cl - " + str(y_bg_cl))
+            cost += self._losses_and_weights["ace"] * cfs.ace(p_y_given_x, y_gt, y_bg_cl)
         if "ace_w" in self._losses_and_weights and self._losses_and_weights["ace_w"] is not None:
             log.print3("COST: Using adaptive cross entropy with weight: " +str(self._losses_and_weights["ace_w"]))
             w_per_cl_vec = self._compute_w_per_class_vector_for_xentr(self._net.num_classes, y_gt)
