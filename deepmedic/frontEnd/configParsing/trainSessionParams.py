@@ -520,6 +520,9 @@ class TrainSessionParameters(object):
         self.background_classes = cfg[cfg.BACKGROUND_CLASSES] \
             if (cfg[cfg.BACKGROUND_CLASSES] is not None and cfg[cfg.BACKGROUND_CLASSES] != []) \
             else [[False] * n_classes] * len(self.data_folder_names)
+        
+        assert len(self.data_folder_names) == len(self.background_classes)
+        assert [n_classes == len(i) for i in self.background_classes].all() 
 
 
     def _backwards_compat_with_deprecated_cfg(self, cfg):
