@@ -535,6 +535,7 @@ def inference_on_whole_volumes(sessionTf,
         (channels,  # nparray [channels,dim0,dim1,dim2]
          gt_lbl_img,
          roi_mask,
+         _, 
          _) = load_imgs_of_subject(log, "",
                                    subj_i,
                                    paths_per_chan_per_subj,

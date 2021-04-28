@@ -434,8 +434,8 @@ def load_imgs_of_subject(log,
                          paths_to_lbls_per_subj,
                          paths_to_wmaps_per_sampl_cat_per_subj,
                          paths_to_masks_per_subj,
-                         data_folder_names,
-                         background_classes
+                         data_folder_names=None,
+                         background_classes=None
                          ):
     # paths_per_chan_per_subj: None or List of lists. One sublist per case. Each should contain...
     # ... as many elements(strings-filenamePaths) as numberOfChannels, pointing to (nii) channels of this case.
@@ -473,9 +473,12 @@ def load_imgs_of_subject(log,
                        " Rounding and casting to [" + dtype_gt_lbls + "]!")
             gt_lbl_img = np.rint(gt_lbl_img).astype(dtype_gt_lbls)
         
-        for folder_name, classes in zip(data_folder_names, background_classes):
-            if "/"+folder_name+"/" in path_to_lbl:
-                background_classes_list = classes
+        if data_folder_names is not None and background_classes is not None:
+            for folder_name, classes in zip(data_folder_names, background_classes):
+                if "/"+folder_name+"/" in path_to_lbl:
+                    background_classes_list = classes
+        else: 
+            background_classes_list = None
     else:
         gt_lbl_img = None  # For validation and testing
         background_classes_list = None
