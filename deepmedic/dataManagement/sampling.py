@@ -729,7 +729,7 @@ def shuffle_samples(channs_of_samples_per_path_per_model, lbls_predicted_part_of
     # Extract initial shapes
     shuffled_channs_of_samples_arr_per_path_per_model = [[] for _ in range(n_models)]
     shuffled_lbls_predicted_part_of_samples_per_model = [[] for _ in range(n_models)]
-    shuffled_background_classes_of_samples_per_model = [] for _ in range(n_models)]
+    shuffled_background_classes_of_samples_per_model = [[] for _ in range(n_models)]
     for model_idx in range(n_models):
         n_paths_taking_inp = len(channs_of_samples_per_path_per_model[model_idx])
         sublists_with_shuffled_samples_fst_model, sublists_with_shuffled_samples = (sublists_with_shuffled_samples[:(n_paths_taking_inp + 2)], sublists_with_shuffled_samples[(n_paths_taking_inp + 2):])

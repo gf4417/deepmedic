@@ -28,84 +28,86 @@ def process_in_batches(log,
                        train_or_val,
                        n_batches,
                        batchsize,
-                       cnn3d,
+                       cnn3d_list,
                        acc_monitor_ep,
                        channs_samples_per_path,
                        lbls_samples_per_path,
                        bg_classes_per_path):
     # Processes batches of subepoch. Performs training or validation. Collects performance metrics.
-
-    costs_of_batches = []
-    # Each row of array below holds number of:
-    #     Real Positives, Real Neg, True Predicted Pos, True Predicted Neg in subepoch, in this order.
-    arr_RpRnTpTn_per_class_in_subep = np.zeros([cnn3d.num_classes, 4], dtype="int32")
     
-    prefix_progress_str = '[TRAINING]' if train_or_val == 'train' else '[VALIDATION]'
-    print_progress_step_tr_val(log, n_batches, 0, batchsize, prefix_progress_str)
-    for batch_i in range(n_batches):
+    costs_of_batches_per_model = [[] for _ in cnn3d_list]
+    for model_idx, cnn in enumerate(cnn3d_list):
+        # Each row of array below holds number of:
+        #     Real Positives, Real Neg, True Predicted Pos, True Predicted Neg in subepoch, in this order.
+        arr_RpRnTpTn_per_class_in_subep = np.zeros([cnn.num_classes, 4], dtype="int32")
+        
+        prefix_progress_str = '[TRAINING]' if train_or_val == 'train' else '[VALIDATION]'
+        print_progress_step_tr_val(log, n_batches, 0, batchsize, prefix_progress_str)
+        for batch_i in range(n_batches):
 
-        if train_or_val == "train":
-            ops_to_fetch = cnn3d.get_main_ops('train')
-            list_of_ops = [ops_to_fetch['cost']] + ops_to_fetch['list_rp_rn_tp_tn'] +\
-                            [ops_to_fetch['updates_grouped_op']]
+            if train_or_val == "train":
+                ops_to_fetch = cnn.get_main_ops('train')
+                list_of_ops = [ops_to_fetch['cost']] + ops_to_fetch['list_rp_rn_tp_tn'] +\
+                                [ops_to_fetch['updates_grouped_op']]
 
-            min_idx_batch = batch_i * batchsize
-            max_idx_batch = (batch_i + 1) * batchsize
+                min_idx_batch = batch_i * batchsize
+                max_idx_batch = (batch_i + 1) * batchsize
 
-            feeds = cnn3d.get_main_feeds('train')
-            feeds_dict = {feeds['x']: channs_samples_per_path[0][min_idx_batch: max_idx_batch]}
-            for subs_path_i in range(cnn3d.numSubsPaths):
-                x_batch_sub_path = channs_samples_per_path[subs_path_i + 1][min_idx_batch: max_idx_batch]
-                feeds_dict.update({feeds['x_sub_' + str(subs_path_i)]: x_batch_sub_path})
-            feeds_dict.update({feeds['y_gt']: lbls_samples_per_path[min_idx_batch: max_idx_batch]})
-            feeds_dict.update({feeds['y_bg_cl']: bg_classes_per_path[min_idx_batch: max_idx_batch]})
-            # Training step. Returns a list containing the results of fetched ops.
-            results_of_run = sessionTf.run(fetches=list_of_ops, feed_dict=feeds_dict)
+                feeds = cnn.get_main_feeds('train')
+                feeds_dict = {feeds['x']: channs_samples_per_path[0][min_idx_batch: max_idx_batch]}
+                for subs_path_i in range(cnn.numSubsPaths):
+                    x_batch_sub_path = channs_samples_per_path[subs_path_i + 1][min_idx_batch: max_idx_batch]
+                    feeds_dict.update({feeds['x_sub_' + str(subs_path_i)]: x_batch_sub_path})
+                feeds_dict.update({feeds['y_gt']: lbls_samples_per_path[min_idx_batch: max_idx_batch]})
+                feeds_dict.update({feeds['y_bg_cl']: bg_classes_per_path[min_idx_batch: max_idx_batch]})
+                # Training step. Returns a list containing the results of fetched ops.
+                results_of_run = sessionTf.run(fetches=list_of_ops, feed_dict=feeds_dict)
 
-            cnn3d.update_arrays_of_bn_moving_avg(sessionTf)  # I should put this inside the model.
+                cnn.update_arrays_of_bn_moving_avg(sessionTf)  # I should put this inside the model.
 
-            cost_this_batch = results_of_run[0]
-            list_RpRnPpPn_per_class = results_of_run[1:-1]  # [-1] is from updates_grouped_op, returns nothing
+                cost_this_batch = results_of_run[0]
+                list_RpRnPpPn_per_class = results_of_run[1:-1]  # [-1] is from updates_grouped_op, returns nothing
+                
+            else:  # validation
+                ops_to_fetch = cnn.get_main_ops('val')
+                list_of_ops = ops_to_fetch['list_rp_rn_tp_tn']
+
+                min_idx_batch = batch_i * batchsize
+                max_idx_batch = (batch_i + 1) * batchsize
+
+                feeds = cnn.get_main_feeds('val')
+                feeds_dict = {feeds['x']: channs_samples_per_path[0][min_idx_batch: max_idx_batch]}
+                for subs_path_i in range(cnn.numSubsPaths):
+                    x_batch_sub_path = channs_samples_per_path[subs_path_i + 1][min_idx_batch: max_idx_batch]
+                    feeds_dict.update({feeds['x_sub_' + str(subs_path_i)]: x_batch_sub_path})
+                feeds_dict.update({feeds['y_gt']: lbls_samples_per_path[min_idx_batch: max_idx_batch]})
+                # Validation step. Returns a list containing the results of fetched ops.
+                results_of_run = sessionTf.run(fetches=list_of_ops, feed_dict=feeds_dict)
+
+                cost_this_batch = 999  # placeholder in case of validation.
+                list_RpRnPpPn_per_class = results_of_run
             
-        else:  # validation
-            ops_to_fetch = cnn3d.get_main_ops('val')
-            list_of_ops = ops_to_fetch['list_rp_rn_tp_tn']
+            # list_RpRnPpPn_per_class holds Real Pos, Real Neg, True Pred Pos, True Pred Neg ...
+            # ... for all classes, in this order, flattened. First RpRnTpTn are for 'WHOLE' class.
+            arr_RpRnTpTn_per_class = np.asarray(list_RpRnPpPn_per_class, dtype="int32")
+            arr_RpRnTpTn_per_class = arr_RpRnTpTn_per_class.reshape(arr_RpRnTpTn_per_class_in_subep.shape, order='C')
 
-            min_idx_batch = batch_i * batchsize
-            max_idx_batch = (batch_i + 1) * batchsize
+            # To later calculate the mean error and cost over the subepoch
+            costs_of_batches_per_model[model_idx].append(cost_this_batch)  # only really used in training.
+            arr_RpRnTpTn_per_class_in_subep += arr_RpRnTpTn_per_class
 
-            feeds = cnn3d.get_main_feeds('val')
-            feeds_dict = {feeds['x']: channs_samples_per_path[0][min_idx_batch: max_idx_batch]}
-            for subs_path_i in range(cnn3d.numSubsPaths):
-                x_batch_sub_path = channs_samples_per_path[subs_path_i + 1][min_idx_batch: max_idx_batch]
-                feeds_dict.update({feeds['x_sub_' + str(subs_path_i)]: x_batch_sub_path})
-            feeds_dict.update({feeds['y_gt']: lbls_samples_per_path[min_idx_batch: max_idx_batch]})
-            # Validation step. Returns a list containing the results of fetched ops.
-            results_of_run = sessionTf.run(fetches=list_of_ops, feed_dict=feeds_dict)
-
-            cost_this_batch = 999  # placeholder in case of validation.
-            list_RpRnPpPn_per_class = results_of_run
+            print_progress_step_tr_val(log, n_batches, batch_i + 1, batchsize, prefix_progress_str)
         
-        # list_RpRnPpPn_per_class holds Real Pos, Real Neg, True Pred Pos, True Pred Neg ...
-        # ... for all classes, in this order, flattened. First RpRnTpTn are for 'WHOLE' class.
-        arr_RpRnTpTn_per_class = np.asarray(list_RpRnPpPn_per_class, dtype="int32")
-        arr_RpRnTpTn_per_class = arr_RpRnTpTn_per_class.reshape(arr_RpRnTpTn_per_class_in_subep.shape, order='C')
-
-        # To later calculate the mean error and cost over the subepoch
-        costs_of_batches.append(cost_this_batch)  # only really used in training.
-        arr_RpRnTpTn_per_class_in_subep += arr_RpRnTpTn_per_class
-
-        print_progress_step_tr_val(log, n_batches, batch_i + 1, batchsize, prefix_progress_str)
-        
-    # ======== Calculate and Report accuracy over subepoch
-    # In case of validation, mean_cost_subep is just a placeholder.
-    # Cause this does not get calculated and reported in this case.
-    mean_cost_subep = acc_monitor_ep.NA_PATTERN if (train_or_val == "val") else np.mean(costs_of_batches)
-    # This function does NOT flip the class-0 background to foreground!
-    acc_monitor_ep.update_metrics_after_subep(mean_cost_subep, arr_RpRnTpTn_per_class_in_subep)
-    acc_monitor_ep.log_acc_subep_to_txt()
-    acc_monitor_ep.log_acc_subep_to_tensorboard()
-    # Done
+        # ======== Calculate and Report accuracy over subepoch
+        # In case of validation, mean_cost_subep is just a placeholder.
+        # Cause this does not get calculated and reported in this case.
+        if model_idx == 0: # TODO[gf4417] make it so the accuracy of all models is reported
+            mean_cost_subep = acc_monitor_ep.NA_PATTERN if (train_or_val == "val") else np.mean(costs_of_batches_per_model[model_idx])
+            # This function does NOT flip the class-0 background to foreground!
+            acc_monitor_ep.update_metrics_after_subep(mean_cost_subep, arr_RpRnTpTn_per_class_in_subep)
+            acc_monitor_ep.log_acc_subep_to_txt()
+            acc_monitor_ep.log_acc_subep_to_tensorboard()
+            # Done
 
 
 # ------------------------------ MAIN TRAINING ROUTINE -------------------------------------
@@ -198,8 +200,8 @@ def do_training(sessionTf,
                             n_samples_per_subep_train,
                             sampling_type_inst_tr,
                             inp_shapes_per_path_train,
-                            cnn3d.calc_outp_dims_given_inp(inp_shapes_per_path_train[0]),
-                            cnn3d.calc_unpredicted_margin(inp_shapes_per_path_train[0]),
+                            cnn3d_list[0].calc_outp_dims_given_inp(inp_shapes_per_path_train[0]), # TODO[gf4417]: Fix this to deal with multiple outputs of different dims based on model
+                            cnn3d_list[0].calc_unpredicted_margin(inp_shapes_per_path_train[0]), # TODO[gf4417]: Fix this to deal with multiple outputs of different dims based on model
                             paths_per_chan_per_subj_train,
                             paths_to_lbls_per_subj_train,
                             paths_to_masks_per_subj_train,
@@ -220,8 +222,8 @@ def do_training(sessionTf,
                              n_samples_per_subep_val,
                              sampling_type_inst_val,
                              inp_shapes_per_path_val,
-                             cnn3d.calc_outp_dims_given_inp(inp_shapes_per_path_val[0]),
-                             cnn3d.calc_unpredicted_margin(inp_shapes_per_path_val[0]),
+                             cnn3d_list[0].calc_outp_dims_given_inp(inp_shapes_per_path_val[0]), # TODO[gf4417]: Fix this to deal with multiple outputs of different dims based on model
+                             cnn3d_list[0].calc_unpredicted_margin(inp_shapes_per_path_val[0]), # TODO[gf4417]: Fix this to deal with multiple outputs of different dims based on model
                              paths_per_chan_per_subj_val,
                              paths_to_lbls_per_subj_val,
                              paths_to_masks_per_subj_val,
@@ -248,7 +250,7 @@ def do_training(sessionTf,
 
             acc_monitor_ep_tr = AccuracyMonitorForEpSegm(log, 0,
                                                          n_eps_trained_model,
-                                                         cnn3d.num_classes,
+                                                         cnn3d_list[0].num_classes, # TODO[gf4417]: implement so will be specific per model
                                                          n_subepochs,
                                                          tensorboard_loggers['train'])
 
@@ -256,7 +258,7 @@ def do_training(sessionTf,
             if val_on_samples or val_on_whole_volumes:
                 acc_monitor_ep_val = AccuracyMonitorForEpSegm(log, 1,
                                                               n_eps_trained_model,
-                                                              cnn3d.num_classes,
+                                                              cnn3d_list[0].num_classes, # TODO[gf4417]: implement so will be specific per model
                                                               n_subepochs,
                                                               tensorboard_loggers['val'])
             
@@ -281,22 +283,22 @@ def do_training(sessionTf,
                     if mp_pool is None:  # Sequential processing.
                         log.print3(id_str + " NO MULTIPROC: Sampling for subepoch #" + str(subep) +\
                                    " [VALIDATION] will be done by main thread.")
-                        (channs_samples_per_path_val,
-                         lbls_samples_per_path_val,
-                         bg_classes_per_path_val) = get_samples_for_subepoch(*args_for_sampling_val)
+                        (channs_samples_per_path_per_model_val,
+                         lbls_samples_per_model_val,
+                         bg_classes_per_model_val) = get_samples_for_subepoch(*args_for_sampling_val)
                     elif sampling_job_submitted_val:  # done parallel with training of previous epoch.
-                        (channs_samples_per_path_val,
-                         lbls_samples_per_path_val,
-                         bg_classes_per_path_val) = sampling_job_val.get()
+                        (channs_samples_per_path_per_model_val,
+                         lbls_samples_per_model_val,
+                         bg_classes_per_model_val) = sampling_job_val.get()
                         sampling_job_submitted_val = False
                     else:  # Not previously submitted in case of first epoch or after a full-volumes validation.
                         assert subep == 0
                         log.print3(id_str + " MULTIPROC: Before Validation in subepoch #" + str(subep) +\
                                    ", submitting sampling job for next [VALIDATION].")
                         sampling_job_val = mp_pool.apply_async(get_samples_for_subepoch, args_for_sampling_val)
-                        (channs_samples_per_path_val,
-                         lbls_samples_per_path_val,
-                         bg_classes_per_path_val) = sampling_job_val.get()
+                        (channs_samples_per_path_per_model_val,
+                         lbls_samples_per_model_val,
+                         bg_classes_per_model_val) = sampling_job_val.get()
                         sampling_job_submitted_val = False
 
                     # ----------- SUBMIT PARALLEL JOB TO GET TRAINING DATA FOR NEXT TRAINING -----------------
@@ -310,17 +312,17 @@ def do_training(sessionTf,
                     log.print3("V-V-V-V- Validating for subepoch before starting training iterations -V-V-V-V")
                     start_time_val_subep = time.time()
                     # Calc num of batches from extracted samples, in case not extracted as much as requested.
-                    n_batches_val = len(channs_samples_per_path_val[0]) // batchsize_val_samples
+                    n_batches_val = len(channs_samples_per_path_per_model_val[0][0]) // batchsize_val_samples # TODO[gf4417]: Check that this works
                     process_in_batches(log,
                                        sessionTf,
                                        "val",
                                        n_batches_val,
                                        batchsize_val_samples,
-                                       cnn3d,
+                                       cnn3d_list,
                                        acc_monitor_ep_val,
-                                       channs_samples_per_path_val,
-                                       lbls_samples_per_path_val,
-                                       bg_classes_per_path_val)
+                                       channs_samples_per_path_per_model_val,
+                                       lbls_samples_per_model_val,
+                                       bg_classes_per_model_val)
                     log.print3("TIMING: Validation on batches of subepoch #" + str(subep) +\
                                " lasted: {0:.1f}".format(time.time() - start_time_val_subep) + " secs.")
 
@@ -328,22 +330,22 @@ def do_training(sessionTf,
                 if mp_pool is None:  # Sequential processing.
                     log.print3(id_str + " NO MULTIPROC: Sampling for subepoch #" + str(subep) +\
                                " [TRAINING] will be done by main thread.")
-                    (channs_samples_per_path_tr,
-                     lbls_samples_per_path_tr,
-                     bg_classes_per_path_tr) = get_samples_for_subepoch(*args_for_sampling_tr)
+                    (channs_samples_per_path_per_model_tr,
+                     lbls_samples_per_model_tr,
+                     bg_classes_per_model_tr) = get_samples_for_subepoch(*args_for_sampling_tr)
                 elif sampling_job_submitted_train:  # done parallel with train/val of previous epoch.
-                    (channs_samples_per_path_tr,
-                     lbls_samples_per_path_tr,
-                     bg_classes_per_path_tr) = sampling_job_tr.get()
+                    (channs_samples_per_path_per_model_tr,
+                     lbls_samples_per_model_tr,
+                     bg_classes_per_model_tr) = sampling_job_tr.get()
                     sampling_job_submitted_train = False
                 else:  # Not previously submitted in case of first epoch or after a full-volumes validation.
                     assert subep == 0
                     log.print3(id_str + " MULTIPROC: Before Training in subepoch #" + str(subep) +\
                                ", submitting sampling job for next [TRAINING].")
                     sampling_job_tr = mp_pool.apply_async(get_samples_for_subepoch, args_for_sampling_tr)
-                    (channs_samples_per_path_tr,
-                     lbls_samples_per_path_tr,
-                     bg_classes_per_path_tr) = sampling_job_tr.get()
+                    (channs_samples_per_path_per_model_tr,
+                     lbls_samples_per_model_tr,
+                     bg_classes_per_model_tr) = sampling_job_tr.get()
                     sampling_job_submitted_train = False
 
                 # ----- SUBMIT PARALLEL JOB TO GET VAL / TRAIN (if no val) DATA FOR NEXT SUBEPOCH -----
@@ -363,17 +365,17 @@ def do_training(sessionTf,
                 log.print3("-T-T-T-T- Training for this subepoch... May take a few minutes... -T-T-T-T-")
                 start_time_train_subep = time.time()
                 # Calc num of batches from extracted samples, in case not extracted as much as requested.
-                n_batches_train = len(channs_samples_per_path_tr[0]) // batchsize_train
+                n_batches_train = len(channs_samples_per_path_per_model_tr[0][0]) // batchsize_train # TODO[gf4417]: check that this change works, shape: (num_models, batchsize, ...)
                 process_in_batches(log,
                                    sessionTf,
                                    "train",
                                    n_batches_train,
                                    batchsize_train,
-                                   cnn3d,
+                                   cnn3d_list,
                                    acc_monitor_ep_tr,
-                                   channs_samples_per_path_tr,
-                                   lbls_samples_per_path_tr,
-                                   bg_classes_per_path_tr)
+                                   channs_samples_per_path_per_model_tr,
+                                   lbls_samples_per_model_tr,
+                                   bg_classes_per_model_tr)
                 log.print3("TIMING: Training on batches of this subepoch #" + str(subep) +\
                            " lasted: {0:.1f}".format(time.time() - start_time_train_subep) + " secs.")
 
@@ -403,7 +405,7 @@ def do_training(sessionTf,
                 log.print3("***Start validation by segmenting whole subjects for Epoch #" + str(epoch) + "***")
 
                 mean_metrics_val_whole_vols = inference_on_whole_volumes(sessionTf,
-                                                                         cnn3d,
+                                                                         cnn3d_list[0], # TODO[gf4417]: implement so that can be done accross all models
                                                                          log,
                                                                          "val",
                                                                          savePredictedSegmAndProbsDict,
