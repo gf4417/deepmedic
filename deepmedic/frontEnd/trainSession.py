@@ -102,22 +102,25 @@ class TrainSession(Session):
             # Explicit device assignment, throws an error if GPU is specified but not available.
             with tf.device(sess_device):
                 self._log.print3("=========== Making the CNN graph... ===============")
+                cnn3d_list = []
                 cnn3d = Cnn3d()
-                with tf.compat.v1.variable_scope("net"):
-                    cnn3d.make_cnn_model(*model_params.get_args_for_arch())
-                    # I have now created the CNN graph. But not yet the Optimizer's graph.
-                    inp_plchldrs_train, inp_shapes_per_path_train = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('train'), 'train')
-                    inp_plchldrs_val, inp_shapes_per_path_val = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('val'), 'val')
-                    inp_plchldrs_test, inp_shapes_per_path_test = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('test'), 'test')
-                    p_y_given_x_train  = cnn3d.apply(inp_plchldrs_train, 'train', 'train', verbose=True, log=self._log)
-                    p_y_given_x_val    = cnn3d.apply(inp_plchldrs_val, 'infer', 'val', verbose=True, log=self._log)
-                    p_y_given_x_test   = cnn3d.apply(inp_plchldrs_test, 'infer', 'test', verbose=True, log=self._log)
+                cnn3d_list.append(cnn3d)
+                for cnn in cnn3d_list:
+                    with tf.compat.v1.variable_scope("net"):
+                        cnn.make_cnn_model(*model_params.get_args_for_arch())
+                        # I have now created the CNN graph. But not yet the Optimizer's graph.
+                        inp_plchldrs_train, inp_shapes_per_path_train = cnn.create_inp_plchldrs(model_params.get_inp_dims_hr_path('train'), 'train')
+                        inp_plchldrs_val, inp_shapes_per_path_val = cnn.create_inp_plchldrs(model_params.get_inp_dims_hr_path('val'), 'val')
+                        inp_plchldrs_test, inp_shapes_per_path_test = cnn.create_inp_plchldrs(model_params.get_inp_dims_hr_path('test'), 'test')
+                        p_y_given_x_train  = cnn.apply(inp_plchldrs_train, 'train', 'train', verbose=True, log=self._log)
+                        p_y_given_x_val    = cnn.apply(inp_plchldrs_val, 'infer', 'val', verbose=True, log=self._log)
+                        p_y_given_x_test   = cnn.apply(inp_plchldrs_test, 'infer', 'test', verbose=True, log=self._log)
                     
             # No explicit device assignment for the rest.
             # Because trained has piecewise_constant that is only on cpu, and so is saver.
             with tf.compat.v1.variable_scope("trainer"):
                 self._log.print3("=========== Building Trainer ===========\n")
-                trainer = Trainer(*(self._params.get_args_for_trainer() + [cnn3d]))
+                trainer = Trainer(*(self._params.get_args_for_trainer() + [cnn3d_list]))
                 trainer.compute_costs(self._log, p_y_given_x_train)
                 trainer.create_optimizer(*self._params.get_args_for_optimizer())  # Trainer and net connect here.
 
@@ -128,19 +131,22 @@ class TrainSession(Session):
             # The below should not create any new tf.variables.
             self._log.print3("=========== Compiling the Training Function ===========")
             self._log.print3("=======================================================\n")
-            cnn3d.setup_ops_n_feeds_to_train(self._log,
-                                             inp_plchldrs_train,
-                                             p_y_given_x_train,
-                                             trainer.get_total_cost(),
-                                             trainer.get_param_updates_wrt_total_cost()  # list of ops
-                                             )
+            for cnn in cnn3d_list:
+                cnn.setup_ops_n_feeds_to_train(self._log,
+                                                inp_plchldrs_train,
+                                                p_y_given_x_train,
+                                                trainer.get_total_cost(),
+                                                trainer.get_param_updates_wrt_total_cost()  # list of ops
+                                                )
 
             self._log.print3("=========== Compiling the Validation Function =========")
-            cnn3d.setup_ops_n_feeds_to_val(self._log, inp_plchldrs_val, p_y_given_x_val)
+            for cnn in cnn3d_list:
+                cnn.setup_ops_n_feeds_to_val(self._log, inp_plchldrs_val, p_y_given_x_val)
 
             self._log.print3("=========== Compiling the Testing Function ============")
             # For validation with full segmentation
-            cnn3d.setup_ops_n_feeds_to_test(self._log, inp_plchldrs_test, p_y_given_x_test, self._params.inds_fms_per_pathtype_per_layer_to_save)
+            for cnn in cnn3d_list:
+                cnn.setup_ops_n_feeds_to_test(self._log, inp_plchldrs_test, p_y_given_x_test, self._params.inds_fms_per_pathtype_per_layer_to_save)
 
             # Create the savers
             saver_all = tf.compat.v1.train.Saver()  # Will be used during training for saving everything.
@@ -214,7 +220,7 @@ class TrainSession(Session):
             self._log.print3("============== Training the CNN model =================")
             self._log.print3("=======================================================")
 
-            do_training(*([sessionTf, saver_all, cnn3d, trainer, tensorboard_loggers] +
+            do_training(*([sessionTf, saver_all, cnn3d_list, trainer, tensorboard_loggers] +
                           self._params.get_args_for_train_routine() +
                           [inp_shapes_per_path_train, inp_shapes_per_path_val, inp_shapes_per_path_test]))
 

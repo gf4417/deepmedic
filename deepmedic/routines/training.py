@@ -111,7 +111,7 @@ def process_in_batches(log,
 # ------------------------------ MAIN TRAINING ROUTINE -------------------------------------
 def do_training(sessionTf,
                 saver_all,
-                cnn3d,
+                cnn3d_list,
                 trainer,
                 tensorboard_loggers,
                 
@@ -184,13 +184,16 @@ def do_training(sessionTf,
 
     # I cannot pass cnn3d to the sampling function, because the pp module used to reload theano. 
     # This created problems in the GPU when cnmem is used. Not sure this is needed with Tensorflow. Probably.
-    cnn3dWrapper = CnnWrapperForSampling(cnn3d)
+    cnn3dWrapper_list = []
+    for cnn in cnn3d_list:
+        cnn3dWrapper = CnnWrapperForSampling(cnn)
+        cnn3dWrapper_list.append(cnn3dWrapper)
 
     args_for_sampling_tr = (log,
                             "train",
                             num_parallel_proc_sampling,
                             run_input_checks,
-                            cnn3dWrapper,
+                            cnn3dWrapper_list,
                             max_n_cases_per_subep_train,
                             n_samples_per_subep_train,
                             sampling_type_inst_tr,
@@ -212,7 +215,7 @@ def do_training(sessionTf,
                              "val",
                              num_parallel_proc_sampling,
                              run_input_checks,
-                             cnn3dWrapper,
+                             cnn3dWrapper_list,
                              max_n_cases_per_subep_train,
                              n_samples_per_subep_val,
                              sampling_type_inst_val,

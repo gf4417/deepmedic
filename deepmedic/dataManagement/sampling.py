@@ -44,7 +44,7 @@ def get_samples_for_subepoch(log,
                              train_val_or_test,
                              num_parallel_proc,
                              run_input_checks,
-                             cnn3d,
+                             cnn3d_list,
                              max_n_cases_per_subep,
                              n_samples_per_subep,
                              sampling_type,
@@ -85,9 +85,9 @@ def get_samples_for_subepoch(log,
 
     # List, with [numberOfPathwaysThatTakeInput] sublists.
     # Each sublist is list of [partImagesLoadedPerSubepoch] arrays [channels, R,C,Z].
-    channs_of_samples_per_path = [[] for i in range(cnn3d.getNumPathwaysThatRequireInput())]
-    lbls_predicted_part_of_samples = []  # Labels only for the central/predicted part of segments.
-    background_classes_of_samples = [] 
+    channs_of_samples_per_path_per_model = [[[] for i in range(cnn3d.getNumPathwaysThatRequireInput())] for _ in cnn3d_list]
+    lbls_predicted_part_of_samples_per_model = [[] for _ in cnn3d_list]  # Labels only for the central/predicted part of segments.
+    background_classes_of_samples_per_model = [[] for _ in cnn3d_list] 
     # Can be different than max_n_cases_per_subep, because of available images number.
     n_subjs_for_subep = len(idxs_of_subjs_for_subep)
 
@@ -97,7 +97,7 @@ def get_samples_for_subepoch(log,
     args_sampling_job = [log,
                          train_val_or_test,
                          run_input_checks,
-                         cnn3d,
+                         cnn3d_list,
                          sampling_type,
                          paths_per_chan_per_subj,
                          paths_to_lbls_per_subj,
@@ -129,11 +129,12 @@ def get_samples_for_subepoch(log,
             (channs_samples_from_job_per_path,
              lbls_predicted_part_samples_from_job,
              background_classes_of_samples_from_job) = load_subj_and_sample(*([job_idx] + args_sampling_job))
-            for pathway_i in range(cnn3d.getNumPathwaysThatRequireInput()):
-                # concat does not copy.
-                channs_of_samples_per_path[pathway_i] += channs_samples_from_job_per_path[pathway_i]
-            lbls_predicted_part_of_samples += lbls_predicted_part_samples_from_job  # concat does not copy.
-            background_classes_of_samples += background_classes_of_samples_from_job
+            for cnn3d_index, _ in enumerate(cnn3d_list):
+                for pathway_i in range(cnn3d.getNumPathwaysThatRequireInput()):
+                    # concat does not copy.
+                    channs_of_samples_per_path_per_model[cnn3d_index][pathway_i] += channs_samples_from_job_per_path[cnn3d_index][pathway_i]
+                lbls_predicted_part_of_samples_per_model[cnn3d_index] += lbls_predicted_part_samples_from_job[cnn3d_index]  # concat does not copy.
+                background_classes_of_samples_per_model[cnn3d_index] += background_classes_of_samples_from_job[cnn3d_index]
 
     else:  # Parallelize sampling from each subject
         while len(jobs_idxs_to_do) > 0:  # While jobs remain.
@@ -158,12 +159,12 @@ def get_samples_for_subepoch(log,
                         (channs_samples_from_job_per_path,
                          lbls_predicted_part_samples_from_job,
                          background_classes_of_samples_from_job) = jobs[job_idx].get(timeout=60)
-                        for pathway_i in range(cnn3d.getNumPathwaysThatRequireInput()):
-                            # concat does not copy.
-                            channs_of_samples_per_path[pathway_i] += channs_samples_from_job_per_path[pathway_i]
-                        # concat does not copy.
-                        lbls_predicted_part_of_samples += lbls_predicted_part_samples_from_job
-                        background_classes_of_samples += background_classes_of_samples_from_job
+                        for cnn3d_index, _ in enumerate(cnn3d_list):
+                            for pathway_i in range(cnn3d.getNumPathwaysThatRequireInput()):
+                                # concat does not copy.
+                                channs_of_samples_per_path_per_model[cnn3d_index][pathway_i] += channs_samples_from_job_per_path[cnn3d_index][pathway_i]
+                            lbls_predicted_part_of_samples_per_model[cnn3d_index] += lbls_predicted_part_samples_from_job[cnn3d_index]  # concat does not copy.
+                            background_classes_of_samples_per_model[cnn3d_index] += background_classes_of_samples_from_job[cnn3d_index]
                         jobs_idxs_to_do.remove(job_idx)
                     except multiprocessing.TimeoutError:
                         log.print3(sampler_id +\
@@ -194,21 +195,21 @@ def get_samples_for_subepoch(log,
                 mp_pool.join()
 
     # Got all samples for subepoch. Now shuffle them, together segments and their labels.
-    (channs_of_samples_per_path,
-     lbls_predicted_part_of_samples,
-     background_classes_of_samples) = shuffle_samples(channs_of_samples_per_path, lbls_predicted_part_of_samples, background_classes_of_samples)
+    (channs_of_samples_per_path_per_model,
+     lbls_predicted_part_of_samples_per_model,
+     background_classes_of_samples_per_model) = shuffle_samples(channs_of_samples_per_path_per_model, lbls_predicted_part_of_samples_per_model, background_classes_of_samples_per_model)
     log.print3(sampler_id + " TIMING: Sampling for next [" + tr_or_val_str_log +
                "] lasted: {0:.1f}".format(time.time() - start_time_sampling) + " secs.")
 
     log.print3(sampler_id + " :=:=:=:=:=:= Finished sampling for next [" + tr_or_val_str_log + "] =:=:=:=:=:=:")
 
-    channs_of_samples_arr_per_path = [np.asarray(channs_of_samples_for_path, dtype="float32") for
-                                      channs_of_samples_for_path in channs_of_samples_per_path]
+    channs_of_samples_arr_per_path_per_model = [[np.asarray(channs_of_samples_for_path, dtype="float32") for channs_of_samples_for_path in channs_of_samples_for_path_per_model] for
+                                      channs_of_samples_for_path_per_model in channs_of_samples_per_path_per_model]
 
-    lbls_predicted_part_of_samples_arr = np.asarray(lbls_predicted_part_of_samples, dtype="int32")
-    background_classes_of_samples_arr = np.asarray(background_classes_of_samples, dtype="bool")
+    lbls_predicted_part_of_samples_arr_per_model = [np.asarray(lbls_predicted_part_of_samples, dtype="int32") for lbls_predicted_part_of_samples in lbls_predicted_part_of_samples_per_model]
+    background_classes_of_samples_arr_per_model = [np.asarray(background_classes_of_samples, dtype="bool") for background_classes_of_samples in background_classes_of_samples_per_model]
 
-    return channs_of_samples_arr_per_path, lbls_predicted_part_of_samples_arr, background_classes_of_samples_arr
+    return channs_of_samples_arr_per_path_per_model, lbls_predicted_part_of_samples_arr_per_model, background_classes_of_samples_arr_per_model
 
 
 def init_sampling_proc():
@@ -270,7 +271,7 @@ def load_subj_and_sample(job_idx,
                          log,
                          train_val_or_test,
                          run_input_checks,
-                         cnn3d,
+                         cnn3d_list,
                          sampling_type,
                          paths_per_chan_per_subj,
                          paths_to_lbls_per_subj,
@@ -301,9 +302,10 @@ def load_subj_and_sample(job_idx,
 
     # List, with [numberOfPathwaysThatTakeInput] sublists.
     # Each sublist is list of [partImagesLoadedPerSubepoch] arrays [channels, R,C,Z].
-    channs_of_samples_per_path = [[] for i in range(cnn3d.getNumPathwaysThatRequireInput())]
-    lbls_predicted_part_of_samples = []  # Labels only for the central/predicted part of segments.
-    background_classes_of_samples = []
+    channs_of_samples_per_path_per_model = [[[] for i in range(cnn3d.getNumPathwaysThatRequireInput())] for _ in cnn3d_list]
+    lbls_predicted_part_of_samples_per_model = [[] for _ in cnn3d_list]  # Labels only for the central/predicted part of segments.
+    background_classes_of_samples_per_model = [[] for _ in cnn3d_list] 
+
 
     dims_hres_segment = inp_shapes_per_path[0]
     
@@ -407,10 +409,11 @@ def load_subj_and_sample(job_idx,
                                                              augm_sample_prms)
             time_augm_samples += time.time() - time_augm_sample_0
             
-            for pathway_i in range(cnn3d.getNumPathwaysThatRequireInput()):
-                channs_of_samples_per_path[pathway_i].append(channs_of_sample_per_path[pathway_i])
-            lbls_predicted_part_of_samples.append(lbls_predicted_part_of_sample)
-            background_classes_of_samples.append(background_classes_list)
+            for cnn3d_index,_ in enumerate(cnn3d_list):
+                for pathway_i in range(cnn3d.getNumPathwaysThatRequireInput()):
+                    channs_of_samples_per_path_per_model[cnn3d_index][pathway_i].append(channs_of_sample_per_path[pathway_i].copy())
+                lbls_predicted_part_of_samples_per_model[cnn3d_index].append(lbls_predicted_part_of_sample.copy())
+                background_classes_of_samples_per_model[cnn3d_index].append(background_classes_list.copy())
         
     log.print3(job_id + str_samples_per_cat)
     log.print3(job_id + " TIMING: " +
@@ -420,7 +423,7 @@ def load_subj_and_sample(job_idx,
                "[Sample Coords: {0:.1f}".format(time_sample_idxs) + "] " +
                "[Extract Sampl: {0:.1f}".format(time_extr_samples) + "] " +
                "[Augm-Samples: {0:.1f}".format(time_augm_samples) + "] secs")
-    return (channs_of_samples_per_path, lbls_predicted_part_of_samples, background_classes_of_samples)
+    return (channs_of_samples_per_path_per_model, lbls_predicted_part_of_samples_per_model, background_classes_of_samples_per_model)
 
 
 # roi_mask_filename and roiMinusLesion_mask_filename can be passed "no".
@@ -705,22 +708,37 @@ def get_subsampl_segment(rec_field_hr_path, channels, segment_hr_slice_coords, s
     return segment_lr
 
 
-def shuffle_samples(channs_of_samples_per_path, lbls_predicted_part_of_samples, background_classes_of_samples):
-    n_paths_taking_inp = len(channs_of_samples_per_path)
-    inp_to_zip = [sublist_for_path for sublist_for_path in channs_of_samples_per_path]
-    inp_to_zip += [lbls_predicted_part_of_samples]
-    inp_to_zip += [background_classes_of_samples]
-
+def shuffle_samples(channs_of_samples_per_path_per_model, lbls_predicted_part_of_samples_per_model, background_classes_of_samples_per_model):
+    # Input shapes:
+    # channs_of_samples_per_path_per_model: (num_models, num_channels, batchshize)
+    # lbls_predicted_part_of_samples_per_model: (num_models, batchshize)
+    # background_classes_of_samples_per_model: (num_models, batchshize)
+    n_models = len(channs_of_samples_per_path_per_model)
+    inp_to_zip = []
+    for model_idx in range(n_models):
+        for sublist_for_path in channs_of_samples_per_path_per_model[model_idx]:
+            inp_to_zip.append(sublist_for_path)
+        inp_to_zip += [lbls_predicted_part_of_samples_per_model[model_idx]]
+        inp_to_zip += [background_classes_of_samples_per_model[model_idx]]
     combined = list(zip(*inp_to_zip))  # list() for python3 compatibility, as range cannot get assignment in shuffle()
+    
+    # Perform shuffle
     random.shuffle(combined)
     sublists_with_shuffled_samples = list(zip(*combined))
 
-    shuffled_channs_of_samples_per_path = [sublist_for_path for sublist_for_path in
-                                           sublists_with_shuffled_samples[:n_paths_taking_inp]]
-    shuffled_lbls_predicted_part_of_samples = sublists_with_shuffled_samples[n_paths_taking_inp]
-    shuffled_background_classes_of_samples = sublists_with_shuffled_samples[n_paths_taking_inp + 1]
+    # Extract initial shapes
+    shuffled_channs_of_samples_arr_per_path_per_model = [[] for _ in range(n_models)]
+    shuffled_lbls_predicted_part_of_samples_per_model = [[] for _ in range(n_models)]
+    shuffled_background_classes_of_samples_per_model = [] for _ in range(n_models)]
+    for model_idx in range(n_models):
+        n_paths_taking_inp = len(channs_of_samples_per_path_per_model[model_idx])
+        sublists_with_shuffled_samples_fst_model, sublists_with_shuffled_samples = (sublists_with_shuffled_samples[:(n_paths_taking_inp + 2)], sublists_with_shuffled_samples[(n_paths_taking_inp + 2):])
+        shuffled_channs_of_samples_arr_per_path_per_model[model_idx] = [sublist_for_path for sublist_for_path in
+                                           sublists_with_shuffled_samples_fst_model[:n_paths_taking_inp]]
+        shuffled_lbls_predicted_part_of_samples_per_model[i] = sublists_with_shuffled_samples_fst_model[n_paths_taking_inp]
+        shuffled_background_classes_of_samples_per_model[i] = sublists_with_shuffled_samples_fst_model[n_paths_taking_inp+1]
 
-    return (shuffled_channs_of_samples_per_path, shuffled_lbls_predicted_part_of_samples, shuffled_background_classes_of_samples)
+    return (shuffled_channs_of_samples_arr_per_path_per_model, shuffled_lbls_predicted_part_of_samples_per_model, shuffled_background_classes_of_samples_per_model)
 
 
 # I must merge this with function: extractSegmentsGivenSliceCoords() that is used for Testing! Should be easy!
