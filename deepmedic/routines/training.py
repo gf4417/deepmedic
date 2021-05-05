@@ -54,12 +54,12 @@ def process_in_batches(log,
                 max_idx_batch = (batch_i + 1) * batchsize
 
                 feeds = cnn.get_main_feeds('train')
-                feeds_dict = {feeds['x']: channs_samples_per_path[0][min_idx_batch: max_idx_batch]}
+                feeds_dict = {feeds['x']: channs_samples_per_path[model_idx][0][min_idx_batch: max_idx_batch]}
                 for subs_path_i in range(cnn.numSubsPaths):
-                    x_batch_sub_path = channs_samples_per_path[subs_path_i + 1][min_idx_batch: max_idx_batch]
+                    x_batch_sub_path = channs_samples_per_path[model_idx][subs_path_i + 1][min_idx_batch: max_idx_batch]
                     feeds_dict.update({feeds['x_sub_' + str(subs_path_i)]: x_batch_sub_path})
-                feeds_dict.update({feeds['y_gt']: lbls_samples_per_path[min_idx_batch: max_idx_batch]})
-                feeds_dict.update({feeds['y_bg_cl']: bg_classes_per_path[min_idx_batch: max_idx_batch]})
+                feeds_dict.update({feeds['y_gt']: lbls_samples_per_path[model_idx][min_idx_batch: max_idx_batch]})
+                feeds_dict.update({feeds['y_bg_cl']: bg_classes_per_path[model_idx][min_idx_batch: max_idx_batch]})
                 # Training step. Returns a list containing the results of fetched ops.
                 results_of_run = sessionTf.run(fetches=list_of_ops, feed_dict=feeds_dict)
 
