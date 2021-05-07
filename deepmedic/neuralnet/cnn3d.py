@@ -66,7 +66,20 @@ class Cnn3d(object):
                 return pathway
         return None
     
-
+    # Method for mean teacher approach to update the parameters of the teacher model to be a moving average of the student model
+    def update_exponential_moving_avg_of_params(self, sessionTf, paramsToUpdate):
+        for path_idx, pathway in enumerate(self.pathways):
+            for block_i in range(len(pathway.get_blocks())) :
+                pathway.get_block(block_i).update_params(sessionTf, paramsToUpdate[path_idx][block_i])
+        return paramsToOptDuringTraining
+    
+    def get_all_trainable_params(self):
+        paramsToOptDuringTraining = []  # Ws and Bs
+        for path_idx, pathway in enumerate(self.pathways):
+            paramsToOptDuringTraining.append([])
+            for block_i in range(len(pathway.get_blocks())) :
+                paramsToOptDuringTraining[path_idx].append(pathway.get_block(block_i).get_all_trainable_params())
+        return paramsToOptDuringTraining
         
     # for inference with batch-normalization.
     # Every training batch, this is called to update an internal matrix of each layer, with the last mus and vars,

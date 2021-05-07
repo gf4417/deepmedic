@@ -91,6 +91,23 @@ class Block(object):
         for block in self._target_blocks:
             total_params += block.trainable_params() # concat lists
         return total_params
+
+    def get_all_trainable_params(self):
+        total_params = []
+        for layer in self._layers:
+            total_params.append(layer.trainable_params()) 
+        for block in self._target_blocks:
+            total_params.append(block.trainable_params()) 
+        return total_params
+    
+    def update_exponential_moving_avg_of_params(self, sessionTf, params):
+        idx = 0
+        for layer in self._layers:
+            layer.update_exponential_moving_avg_of_params(sessionTf, params[idx])
+            idx += 1
+        for block in self._target_blocks:
+            block.update_exponential_moving_avg_of_params(sessionTf, params[idx])
+            idx += 1
     
     def params_for_L1_L2_reg(self):
         total_params = []

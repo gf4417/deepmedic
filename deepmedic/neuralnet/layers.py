@@ -35,6 +35,12 @@ class Layer(object):
     def trainable_params(self):
         raise NotImplementedError()
     
+    def get_all_trainable_params(self):
+        raise NotImplementedError()
+    
+    def update_exponential_moving_avg_of_params(self, params):
+        raise NotImplementedError()
+
     def params_for_L1_L2_reg(self):
         return []
     
@@ -68,6 +74,12 @@ class PoolingLayer(Layer):
         
     def trainable_params(self):
         return []
+    
+    def get_all_trainable_params(self):
+        return [None]
+    
+    def update_exponential_moving_avg_of_params(self, params):
+        return
     
     def _n_padding(self):
         # Returns [padx,pady,padz], how much pad would have been added to preserve dimensions ('SAME' or 'MIRROR').
@@ -110,6 +122,12 @@ class ConvolutionalLayer(Layer):
 
     def trainable_params(self):
         return [self._w]
+    
+    def get_all_trainable_params(self):
+        return [self._w]
+    
+    def update_exponential_moving_avg_of_params(self, params):
+        self._w = params[0]
     
     def params_for_L1_L2_reg(self):
         return self.trainable_params()
@@ -164,6 +182,14 @@ class LowRankConvolutionalLayer(ConvolutionalLayer):
         
     def trainable_params(self):
         return [self._w_x, self._w_y, self._w_z] # Note: these tensors have different shapes! Treat carefully.
+    
+    def get_all_trainable_params(self):
+        return [self._w_x, self._w_y, self._w_z]
+    
+    def update_exponential_moving_avg_of_params(self, params):
+        self._w_x = params[0]
+        self._w_y = params[1]
+        self._w_z = params[2]
     
     def params_for_L1_L2_reg(self):
         return self.trainable_params()
@@ -249,6 +275,12 @@ class DropoutLayer(Layer):
     def trainable_params(self):
         return []
     
+    def get_all_trainable_params(self):
+        return []
+    
+    def update_exponential_moving_avg_of_params(self, params):
+        return
+    
 class BiasLayer(Layer):
     def __init__(self, n_channels):
         self._b = tf.Variable(np.zeros((n_channels), dtype = 'float32'), name="b")
@@ -260,6 +292,12 @@ class BiasLayer(Layer):
     
     def trainable_params(self):
         return [self._b]
+    
+    def get_all_trainable_params(self):
+        return [self._b]
+    
+    def update_exponential_moving_avg_of_params(self, params):
+        self._b = params[0]
     
 class BatchNormLayer(Layer):
     # Order of functions:
@@ -282,6 +320,13 @@ class BatchNormLayer(Layer):
 
     def trainable_params(self):
         return [self._g, self._b]
+    
+    def get_all_trainable_params(self):
+        return [self._g, self._b]
+    
+    def update_exponential_moving_avg_of_params(self, sessionTf, params):
+        self._g = params[0]
+        self._b = params[1]
     
     def apply(self, input, mode, e1 = np.finfo(np.float32).tiny):
         # mode: String in ["train", "infer"]
@@ -342,6 +387,12 @@ class PreluLayer(Layer):
     
     def trainable_params(self):
         return [self._a]
+    
+    def get_all_trainable_params(self):
+        return [self._a]
+    
+    def update_exponential_moving_avg_of_params(self, params):
+        self._a = params[0]
     
 class IdentityLayer(Layer):
     def apply(self, input, _): return input

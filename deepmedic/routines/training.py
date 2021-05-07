@@ -64,6 +64,10 @@ def process_in_batches(log,
                 results_of_run = sessionTf.run(fetches=list_of_ops, feed_dict=feeds_dict)
 
                 cnn.update_arrays_of_bn_moving_avg(sessionTf)  # I should put this inside the model.
+                
+                # If model is teacher update parameters based on student model as exponential moving average
+                if model_idx == 1:
+                    cnn.update_exponential_moving_avg_of_params(cnn3d_list[0].get_all_trainable_params())
 
                 cost_this_batch = results_of_run[0]
                 list_RpRnPpPn_per_class = results_of_run[1:-1]  # [-1] is from updates_grouped_op, returns nothing
