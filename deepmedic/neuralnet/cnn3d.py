@@ -402,6 +402,34 @@ class Cnn3d(object):
         
         return p_y_given_x
         
+    def apply_ma(self, inputs_per_pathw, mode, train_val_test, verbose=True, log=None):
+        # Currently applies it on the placeholders. TODO: On actual input.
+        # train_val_test: TEMPORARY. ONLY TO RETURN FMS. REMOVE IN END OF REFACTORING.
+        #assert len(inputs_per_pathw) == len(self.pathways) - 1
+        
+        #===== Apply High-Res path =========
+        input = inputs_per_pathw['x']
+        out = self.pathways[0].apply_ma(input, mode, train_val_test, verbose, log)
+        dims_outp_pathway_hr = out.shape
+        fms_from_paths_to_concat = [out]
+        
+        # === Subsampled pathways =========
+        for subpath_i in range(self.numSubsPaths):
+            input = inputs_per_pathw['x_sub_'+str(subpath_i)]
+            this_pathway = self.pathways[subpath_i+1]
+            out_lr = this_pathway.apply_ma(input, mode, train_val_test, verbose, log)
+            # this creates essentially the "upsampling layer"
+            out = this_pathway.upsample_to_high_res(out_lr, shape_to_match=dims_outp_pathway_hr, upsampl_type="repeat") 
+            fms_from_paths_to_concat.append(out)
+            
+        # ===== Concatenate and final convs ========
+        conc_inp_fms = tf.concat(fms_from_paths_to_concat, axis=1)
+        logits_no_bias = self.pathways[-1].apply_ma(conc_inp_fms, mode, train_val_test, verbose, log)
+        # Softmax
+        p_y_given_x = self.finalTargetLayer.apply_ma(logits_no_bias, mode)
+        
+        return p_y_given_x
+
     def calc_inp_dims_of_paths_from_hr_inp(self, inp_hr_dims):
         out_shape_of_hr_path = self.pathways[0].calc_outp_dims_given_inp(inp_hr_dims)
         inp_shape_per_path = []

@@ -80,6 +80,14 @@ class Block(object):
             signal = layer.apply(signal, mode)
         return signal
     
+    # Main functionality
+    def apply_ma(self, input, mode):
+        # mode: 'train' or 'infer'
+        signal = input
+        for layer in self._layers:
+            signal = layer.apply_ma(signal, mode)
+        return signal
+    
     def connect_target_block(self, new_target_block_instance):
         # new_target_block_instance : eg softmax layer. Future: Regression layer, or other auxiliary classifiers.
         self._target_blocks += [new_target_block_instance]

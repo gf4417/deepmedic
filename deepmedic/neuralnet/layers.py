@@ -32,6 +32,10 @@ class Layer(object):
         # mode: "train" or "infer"
         raise NotImplementedError()
     
+    def apply_ma(self, input, mode):
+        # mode: "train" or "infer"
+        raise NotImplementedError()
+    
     def trainable_params(self):
         raise NotImplementedError()
     
@@ -66,6 +70,10 @@ class PoolingLayer(Layer):
         self._pool_mode = pool_mode
         
     def apply(self, input, _):
+        # input dimensions: (batch, fms, r, c, z)
+        return ops.pool_3d(input, self._window_size, self._strides, self._pad_mode, self._pool_mode)
+    
+    def apply_ma(self, input, _):
         # input dimensions: (batch, fms, r, c, z)
         return ops.pool_3d(input, self._window_size, self._strides, self._pad_mode, self._pool_mode)
         
@@ -114,6 +122,9 @@ class ConvolutionalLayer(Layer):
     
     def apply(self, input, mode):
         return ops.conv_3d(input, self._w, self._pad_mode)
+    
+    def apply_ma(self, input, mode):
+        return ops.conv_3d(input, self._ma_w, self._pad_mode)
 
     def trainable_params(self):
         return [self._w]
@@ -191,6 +202,14 @@ class LowRankConvolutionalLayer(ConvolutionalLayer):
         # concatenate together.
         out = self._crop_sub_outputs_same_dims_and_concat(out_x, out_y, out_z)
         return out
+    
+    def apply_ma(self, input, mode):
+        out_x = ops.conv_3d(input, self._ma_w_x, self._pad_mode)
+        out_y = ops.conv_3d(input, self._ma_w_y, self._pad_mode)
+        out_z = ops.conv_3d(input, self._ma_w_z, self._pad_mode)
+        # concatenate together.
+        out = self._crop_sub_outputs_same_dims_and_concat(out_x, out_y, out_z)
+        return out
         
     def _crop_sub_outputs_same_dims_and_concat(self, tens_x, tens_y, tens_z):
         assert (tens_x.shape[0] == tens_y.shape[0]) and (tens_y.shape[0] == tens_z.shape[0]) # batch-size
@@ -262,6 +281,23 @@ class DropoutLayer(Layer):
         
         return output
     
+    def apply_ma(self, input, mode):
+        if self._keep_prob > 0.999: #Dropout below 0.001 I take it as if there is no dropout. To avoid float problems with drop == 0.0
+            return input
+        
+        if mode == "train":
+            random_tensor = self._keep_prob
+            random_tensor += tf.random.uniform(shape=tf.shape(input), minval=0., maxval=1., seed=self._rng.randint(999999), dtype="float32")
+            # 0. if [keep_prob, 1.0) and 1. if [1.0, 1.0 + keep_prob)
+            dropout_mask = tf.floor(random_tensor)
+            output = input * dropout_mask
+        elif mode == "infer":
+            output = input * self._keep_prob
+        else:
+            raise NotImplementedError()
+        
+        return output
+    
     def trainable_params(self):
         return []
     
@@ -276,6 +312,10 @@ class BiasLayer(Layer):
     def apply(self, input, _):
         # self._b.shape[0] should already be input.shape[1] number of input channels.
         return input + tf.reshape(self._b, shape=[1,input.shape[1],1,1,1])
+    
+    def apply_ma(self, input, _):
+        # self._b.shape[0] should already be input.shape[1] number of input channels.
+        return input + tf.reshape(self._ma_b, shape=[1,input.shape[1],1,1,1])
     
     def trainable_params(self):
         return [self._b]
@@ -335,6 +375,32 @@ class BatchNormLayer(Layer):
         
         # Returns mu_batch, var_batch to update the moving average afterwards (during training)
         return norm_inp
+    
+    def apply_ma(self, input, mode, e1 = np.finfo(np.float32).tiny):
+        # mode: String in ["train", "infer"]
+        n_channs = input.shape[1]
+        
+        if mode == "train":
+            self._new_mu_batch_t, self._new_var_batch_t = tf.nn.moments(input, axes=[0,2,3,4])
+            mu = self._new_mu_batch_t
+            var = self._new_var_batch_t
+        elif mode == "infer":
+            mu = tf.reduce_mean(self._array_mus_for_moving_avg, axis=0)
+            var = tf.reduce_mean(self._array_vars_for_moving_avg, axis=0)
+        else:
+            raise NotImplementedError()
+        
+        # Reshape for broadcast.
+        g_resh = tf.reshape(self._ma_g, shape=[1,n_channs,1,1,1])
+        b_resh = tf.reshape(self._ma_b, shape=[1,n_channs,1,1,1])
+        mu     = tf.reshape(mu, shape=[1,n_channs,1,1,1])
+        var    = tf.reshape(var, shape=[1,n_channs,1,1,1])
+        # Normalize
+        norm_inp = (input - mu ) /  tf.sqrt(var + e1) # e1 should come OUT of the sqrt! 
+        norm_inp = g_resh * norm_inp + b_resh
+        
+        # Returns mu_batch, var_batch to update the moving average afterwards (during training)
+        return norm_inp
         
     def get_update_ops_for_bn_moving_avg(self) : # I think this is utterly useless.
         # This function or something similar should stay, even if I clean the BN rolling average.
@@ -368,6 +434,10 @@ class PreluLayer(Layer):
         # input is a tensor of shape (batchSize, FMs, r, c, z)
         return ops.prelu(input, tf.reshape(self._a, shape=[1,input.shape[1],1,1,1]) )
     
+    def apply_ma(self, input, _):
+        # input is a tensor of shape (batchSize, FMs, r, c, z)
+        return ops.prelu(input, tf.reshape(self._ma_a, shape=[1,input.shape[1],1,1,1]) )
+
     def trainable_params(self):
         return [self._a]
     
@@ -376,21 +446,25 @@ class PreluLayer(Layer):
     
 class IdentityLayer(Layer):
     def apply(self, input, _): return input
+    def apply_ma(self, input, _): return input
     def trainable_params(self): return []
     def ma_trainable_params(self): return []
     
 class ReluLayer(Layer):
     def apply(self, input, _): return ops.relu(input)
+    def apply_ma(self, input, _): return ops.relu(input)
     def trainable_params(self): return []
     def ma_trainable_params(self): return []
 
 class EluLayer(Layer):
     def apply(self, input, _): return ops.elu(input)
+    def apply_ma(self, input, _): return ops.elu(input)
     def trainable_params(self): return []
     def ma_trainable_params(self): return []
     
 class SeluLayer(Layer):
     def apply(self, input, _): return ops.selu(input)
+    def apply_ma(self, input, _): return ops.selu(input)
     def trainable_params(self): return []
     def ma_trainable_params(self): return []
     
