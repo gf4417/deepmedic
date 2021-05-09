@@ -16,9 +16,21 @@ def augment_sample(channels, gt_lbls, prms):
     if prms is not None:
         channels = random_histogram_distortion(channels, prms['hist_dist'])
         channels, gt_lbls = random_flip(channels, gt_lbls, prms['reflect'])
-        channels, gt_lbls = random_rotation_90(channels, gt_lbls, prms['rotate90'])
+        channels, gt_lbls, _, _ = random_rotation_90(channels, gt_lbls, prms['rotate90'])
         
     return channels, gt_lbls
+
+def augment_sample_rand_rot(channels, gt_lbls):
+    # channels: list (x pathways) of np arrays [channels, x, y, z]. Whole volumes, channels of a case.
+    # gt_lbls: np array of shape [x,y,z]
+    # prms: None or Dictionary, with parameters of each augmentation type. }
+    prms = {'xy': {'0': 0.25, '90': 0.25, '180': 0.25, '270': 0.25},
+            'yz': {'0': 0.25, '90': 0.25, '180': 0.25, '270': 0.25},
+            'xz': {'0': 0.25, '90': 0.25, '180': 0.25, '270': 0.25} }
+
+    channels, gt_lbls, rot_90_xtimes, plane_axes = random_rotation_90(channels, gt_lbls, prms)
+        
+    return channels, gt_lbls, (rot_90_xtimes, plane_axes)
 
 def random_histogram_distortion(channels, prms):
     # Shift and scale the histogram of each channel.
@@ -99,6 +111,6 @@ def random_rotation_90(channels, gt_lbls, probs_rot_90=None):
             channels[path_idx] = np.rot90(channels[path_idx], k=rot_90_xtimes, axes = [axis+1 for axis in plane_axes]) # + 1 cause [0] is channels.
         gt_lbls = np.rot90(gt_lbls, k=rot_90_xtimes, axes = plane_axes)
         
-    return channels, gt_lbls
+    return channels, gt_lbls, rot_90_xtimes, plane_axes
 
 
