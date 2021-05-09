@@ -74,6 +74,37 @@ class Pathway(object):
             #log.print3("Pathway [" + str(self.getStringType()) + "] done.")
 
         return input_to_next_layer
+    
+    def apply_ma(self, input, mode, train_val_test, verbose=False, log=None):
+        # mode: 'train' / 'infer'
+        # train_val_test: TEMPORARY. ONLY TO RETURN FMS. REMOVE IN END OF REFACTORING.
+        if verbose:
+            log.print3("Pathway ["+str(self.getStringType())+"], Mode: [" + mode + "], Input's Shape: " + str(input.shape))
+
+        input_to_prev_layer = None
+        input_to_next_layer = input
+
+        for idx, block in enumerate(self._blocks):
+            if verbose:
+                log.print3("\tBlock [" + str(idx) + "], Mode: [" + mode + "], Input's Shape: " + str(input_to_next_layer.shape))
+
+            out = block.apply_ma(input_to_next_layer, mode)
+            block.output[train_val_test] = out # HACK TEMPORARY. ONLY USED FOR RETURNING FMS.
+            if idx not in self._inds_of_blocks_for_res_conns_at_out: #not a residual connecting here
+                input_to_prev_layer = input_to_next_layer
+                input_to_next_layer = out
+            else : #make residual connection
+                assert idx > 0 # The very first block (index 0), should never be provided for now. Cause I am connecting 2 layers back.
+                log.print3("\tResidual-Connection made between: output of [Block_"+str(idx)+"] & input of previous block.")
+                out_res = ops.make_residual_connection(input_to_prev_layer, out)
+                input_to_prev_layer = input_to_next_layer
+                input_to_next_layer = out_res
+
+        if verbose:
+            log.print3("Pathway ["+str(self.getStringType())+"], Mode: [" + mode + "], Output's Shape: " + str(input_to_next_layer.shape))
+            #log.print3("Pathway [" + str(self.getStringType()) + "] done.")
+
+        return input_to_next_layer
 
     def rec_field(self, rf_at_inp=[1,1,1], stride_rf_at_inp=[1,1,1]):
         # Returns: Rf of neurons at the output of the final layer of the block, with respect to input.

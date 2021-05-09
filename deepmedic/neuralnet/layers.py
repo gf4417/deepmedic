@@ -129,7 +129,7 @@ class ConvolutionalLayer(Layer):
     def trainable_params(self):
         return [self._w]
     
-    def ma_trainable_params(self)@
+    def ma_trainable_params(self):
         return [self._ma_w]
     
     def params_for_L1_L2_reg(self):
@@ -441,7 +441,7 @@ class PreluLayer(Layer):
     def trainable_params(self):
         return [self._a]
     
-    def ma_trainable_params(self)@
+    def ma_trainable_params(self):
         return [self._ma_a]
     
 class IdentityLayer(Layer):

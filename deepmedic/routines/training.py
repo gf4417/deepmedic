@@ -53,6 +53,13 @@ def process_in_batches(log,
             max_idx_batch = (batch_i + 1) * batchsize
 
             feeds = cnn3d.get_main_feeds('train')
+
+            feeds_dict = {feeds['x_ma']: channs_samples_per_path[0][min_idx_batch: max_idx_batch]}
+            for subs_path_i in range(cnn3d.numSubsPaths):
+                x_batch_sub_path = channs_samples_per_path[subs_path_i + 1][min_idx_batch: max_idx_batch]
+                feeds_dict.update({feeds['x_ma_sub_' + str(subs_path_i)]: x_batch_sub_path})
+            feeds_dict.update({feeds['y_ma_gt']: lbls_samples_per_path[min_idx_batch: max_idx_batch]})
+
             feeds_dict = {feeds['x']: channs_samples_per_path[0][min_idx_batch: max_idx_batch]}
             for subs_path_i in range(cnn3d.numSubsPaths):
                 x_batch_sub_path = channs_samples_per_path[subs_path_i + 1][min_idx_batch: max_idx_batch]
