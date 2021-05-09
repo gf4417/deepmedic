@@ -95,6 +95,19 @@ class Cnn3d(object):
                 else : # Layer will be held fixed. Notice that Batch Norm parameters are still learnt.
                     log.print3("WARN: [Pathway_" + str(pathway.getStringType()) + "] The weights of [Layer-"+str(block_i)+"] will NOT be trained as specified (index, first layer is 0).")
         return paramsToOptDuringTraining
+
+    # TODO[gf4417] Check if indiciesOfLayers... is really required for this method
+    # Get moving average parameters
+    def get_ma_trainable_params(self, log, indicesOfLayersPerPathwayTypeToFreeze):
+        # Called from Trainer.
+        paramsToOptDuringTraining = []  # Ws and Bs
+        for pathway in self.pathways :
+            for block_i in range(len(pathway.get_blocks())) :
+                if block_i not in indicesOfLayersPerPathwayTypeToFreeze[ pathway.pType() ] :
+                    paramsToOptDuringTraining = paramsToOptDuringTraining + pathway.get_block(block_i).ma_trainable_params()
+                else : # Layer will be held fixed. Notice that Batch Norm parameters are still learnt.
+                    log.print3("WARN: [Pathway_" + str(pathway.getStringType()) + "] The weights of [Layer-"+str(block_i)+"] will NOT be trained as specified (index, first layer is 0).")
+        return paramsToOptDuringTraining
     
     def params_for_L1_L2_reg(self):
         total_params = []

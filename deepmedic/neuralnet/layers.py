@@ -35,7 +35,7 @@ class Layer(object):
     def trainable_params(self):
         raise NotImplementedError()
     
-    def teacher_trainable_params(self):
+    def ma_trainable_params(self):
         raise NotImplementedError()
     
     def params_for_L1_L2_reg(self):
@@ -72,7 +72,7 @@ class PoolingLayer(Layer):
     def trainable_params(self):
         return []
     
-    def teacher_trainable_params(self):
+    def ma_trainable_params(self):
         return []
     
     def _n_padding(self):
@@ -100,7 +100,7 @@ class ConvolutionalLayer(Layer):
         std_init = self._get_std_init(init_method, fms_in, fms_out, conv_kernel_dims)
         w_init = np.asarray(rng.normal(loc=0.0, scale=std_init, size=[fms_out, fms_in] + conv_kernel_dims), dtype='float32')
         self._w = tf.Variable(w_init, dtype="float32", name="W") # w shape: [#FMs of this layer, #FMs of Input, x, y, z]
-        self._teach_w = tf.Variable(w_init, dtype="float32", name="TEACH_W")
+        self._ma_w = tf.Variable(w_init, dtype="float32", name="MA_W")
         self._strides = [1,1,1]
         self._pad_mode = pad_mode
         
@@ -118,8 +118,8 @@ class ConvolutionalLayer(Layer):
     def trainable_params(self):
         return [self._w]
     
-    def teacher_trainable_params(self)@
-        return [self._teach_w]
+    def ma_trainable_params(self)@
+        return [self._ma_w]
     
     def params_for_L1_L2_reg(self):
         return self.trainable_params()
@@ -159,18 +159,18 @@ class LowRankConvolutionalLayer(ConvolutionalLayer):
         x_subfilter_shape = [fms_out//3, fms_in, conv_kernel_dims[0], 1 if self._rank == 1 else conv_kernel_dims[1], 1]
         w_init = np.asarray(rng.normal(loc=0.0, scale=std_init, size=x_subfilter_shape), dtype='float32')
         self._w_x = tf.Variable(w_init, dtype="float32", name="w_x")
-        self._teach_w_x = tf.Variable(w_init, dtype="float32", name="teach_w_x")
+        self._ma_w_x = tf.Variable(w_init, dtype="float32", name="ma_w_x")
         
         y_subfilter_shape = [fms_out//3, fms_in, 1, conv_kernel_dims[1], 1 if self._rank == 1 else conv_kernel_dims[2]]
         w_init = np.asarray(rng.normal(loc=0.0, scale=std_init, size=y_subfilter_shape), dtype='float32')
         self._w_y = tf.Variable(w_init, dtype="float32", name="w_y")
-        self._teach_w_y = tf.Variable(w_init, dtype="float32", name="teach_w_y")
+        self._ma_w_y = tf.Variable(w_init, dtype="float32", name="ma_w_y")
         
         n_fms_left = fms_out - 2*(fms_out//3) # Cause of possibly inexact integer division.
         z_subfilter_shape = [n_fms_left, fms_in, 1 if self._rank == 1 else conv_kernel_dims[0], 1, conv_kernel_dims[2]]
         w_init = np.asarray(rng.normal(loc=0.0, scale=std_init, size=z_subfilter_shape), dtype='float32')
         self._w_z = tf.Variable(w_init, dtype="float32", name="w_z")
-        self._teach_w_z = tf.Variable(w_init, dtype="float32", name="teach_w_z")
+        self._ma_w_z = tf.Variable(w_init, dtype="float32", name="ma_w_z")
         
         self._strides = [1,1,1]
         self._pad_mode = pad_mode
@@ -178,8 +178,8 @@ class LowRankConvolutionalLayer(ConvolutionalLayer):
     def trainable_params(self):
         return [self._w_x, self._w_y, self._w_z] # Note: these tensors have different shapes! Treat carefully.
     
-    def teacher_trainable_params(self):
-        return [self._teach_w_x, self._teach_w_y, self._teach_w_z]
+    def ma_trainable_params(self):
+        return [self._ma_w_x, self._ma_w_y, self._ma_w_z]
     
     def params_for_L1_L2_reg(self):
         return self.trainable_params()
@@ -265,13 +265,13 @@ class DropoutLayer(Layer):
     def trainable_params(self):
         return []
     
-    def teacher_trainable_params(self):
+    def ma_trainable_params(self):
         return []
     
 class BiasLayer(Layer):
     def __init__(self, n_channels):
         self._b = tf.Variable(np.zeros((n_channels), dtype = 'float32'), name="b")
-        self._teach_b = tf.Variable(np.zeros((n_channels), dtype = 'float32'), name="teach_b")
+        self._ma_b = tf.Variable(np.zeros((n_channels), dtype = 'float32'), name="ma_b")
 
     def apply(self, input, _):
         # self._b.shape[0] should already be input.shape[1] number of input channels.
@@ -280,8 +280,8 @@ class BiasLayer(Layer):
     def trainable_params(self):
         return [self._b]
 
-    def teacher_trainable_params(self):
-        return [self._teach_b]
+    def ma_trainable_params(self):
+        return [self._ma_b]
     
 class BatchNormLayer(Layer):
     # Order of functions:
@@ -290,8 +290,8 @@ class BatchNormLayer(Layer):
         self._moving_avg_length = moving_avg_length # integer. The number of iterations (batches) over which to compute a moving average.
         self._g = tf.Variable( np.ones( (n_channels), dtype='float32'), name="gBn" )
         self._b = tf.Variable( np.zeros( (n_channels), dtype='float32'), name="bBn" )
-        self._teach_g = tf.Variable( np.ones( (n_channels), dtype='float32'), name="teach_gBn" )
-        self._teach_b = tf.Variable( np.zeros( (n_channels), dtype='float32'), name="teach_bBn" )
+        self._ma_g = tf.Variable( np.ones( (n_channels), dtype='float32'), name="ma_gBn" )
+        self._ma_b = tf.Variable( np.zeros( (n_channels), dtype='float32'), name="ma_bBn" )
         #for moving average:
         self._array_mus_for_moving_avg = tf.Variable( np.zeros( (moving_avg_length, n_channels), dtype='float32' ), name="muBnsForRollingAverage" )
         self._array_vars_for_moving_avg = tf.Variable( np.ones( (moving_avg_length, n_channels), dtype='float32' ), name="varBnsForRollingAverage" )        
@@ -307,8 +307,8 @@ class BatchNormLayer(Layer):
     def trainable_params(self):
         return [self._g, self._b]
     
-    def teacher_trainable_params(self):
-        return [self._teach_g, self._teach_b]
+    def ma_trainable_params(self):
+        return [self._ma_g, self._ma_b]
     
     def apply(self, input, mode, e1 = np.finfo(np.float32).tiny):
         # mode: String in ["train", "infer"]
@@ -362,7 +362,7 @@ def get_act_layer(act_str, n_fms_in):
 class PreluLayer(Layer):
     def __init__(self, n_channels, alpha=0.01):
         self._a = tf.Variable(np.ones((n_channels), dtype='float32')*alpha, name="aPrelu")
-        self._teach_a = tf.Variable(np.ones((n_channels), dtype='float32')*alpha, name="teach_aPrelu")
+        self._ma_a = tf.Variable(np.ones((n_channels), dtype='float32')*alpha, name="ma_aPrelu")
 
     def apply(self, input, _):
         # input is a tensor of shape (batchSize, FMs, r, c, z)
@@ -371,27 +371,27 @@ class PreluLayer(Layer):
     def trainable_params(self):
         return [self._a]
     
-    def teacher_trainable_params(self)@
-        return [self._teach_a]
+    def ma_trainable_params(self)@
+        return [self._ma_a]
     
 class IdentityLayer(Layer):
     def apply(self, input, _): return input
     def trainable_params(self): return []
-    def teacher_trainable_params(self): return []
+    def ma_trainable_params(self): return []
     
 class ReluLayer(Layer):
     def apply(self, input, _): return ops.relu(input)
     def trainable_params(self): return []
-    def teacher_trainable_params(self): return []
+    def ma_trainable_params(self): return []
 
 class EluLayer(Layer):
     def apply(self, input, _): return ops.elu(input)
     def trainable_params(self): return []
-    def teacher_trainable_params(self): return []
+    def ma_trainable_params(self): return []
     
 class SeluLayer(Layer):
     def apply(self, input, _): return ops.selu(input)
     def trainable_params(self): return []
-    def teacher_trainable_params(self): return []
+    def ma_trainable_params(self): return []
     
 

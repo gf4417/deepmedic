@@ -159,6 +159,7 @@ class Trainer(object):
         
         # Optimizer
         params_to_opt = self._net.get_trainable_params(log, self._indicesOfLayersPerPathwayTypeToFreeze)
+        teacher_params_to_out = self._net.get_teacher_trainable_params(log, self._indicesOfLayersPerPathwayTypeToFreeze)
         if sgd0orAdam1orRmsProp2 == 0:
             self._optimizer = optimizers_dm.SgdOptimizer( params_to_opt,
                                                           self._curr_lr,
@@ -179,6 +180,15 @@ class Trainer(object):
                                                               classicMomentum0OrNesterov1,
                                                               rhoParamForRmsProp,
                                                               epsilonForRmsProp  )
+        elif sgd0orAdam1orRmsProp2 == 3:
+            self._optimizer = optimizers_dm.RmsPropOptimizerWithTeacher( params_to_opt,
+                                                                        teacher_params_to_out,
+                                                                        self._curr_lr,
+                                                                        self._curr_mom,
+                                                                        momentumTypeNONNormalized0orNormalized1,
+                                                                        classicMomentum0OrNesterov1,
+                                                                        rhoParamForRmsProp,
+                                                                        epsilonForRmsProp  )
         
 
         

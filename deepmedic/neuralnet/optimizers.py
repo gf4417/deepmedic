@@ -183,7 +183,68 @@ class RmsPropOptimizer(Optimizer):
             
         return updates
     
-    
+
+class RmsPropOptimizerWithTeacher(Optimizer):
+    def __init__(self,
+                 params_to_opt,
+                 ma_params_to_out,
+                 learning_rate,
+                 momentum,
+                 momentumTypeNONNormalized0orNormalized1,
+                 classicMomentum0OrNesterov1,
+                 rho,
+                 eps):
+        
+        self.name = "RmsPropOptimizer"
+        
+        self._learning_rate = learning_rate
+        self._momentum = momentum
+        self._momentumTypeNONNormalized0orNormalized1 = momentumTypeNONNormalized0orNormalized1
+        self._classicMomentum0OrNesterov1 = classicMomentum0OrNesterov1
+        self._rho = rho
+        self._eps = eps
+        
+        self._accu_grad_squared = None
+        self._velocities_for_mom = None
+
+        self._ma_params_to_out = ma_params_to_out
+        
+        Optimizer.__init__(self, params_to_opt)
+        
+    def _initialize_vars(self) :
+        self._accu_grad_squared = []
+        self._velocities_for_mom = []
+        for param in self._params_to_opt :
+            self._accu_grad_squared.append( tf.Variable(param * 0., dtype="float32", name="accu_grad_squared") ) # accumulates the mean of the grad's square.
+            self._velocities_for_mom.append( tf.Variable(param * 0., dtype="float32", name="velocities_for_mom") )
+            
+    def get_update_ops_given_grads(self, grads) :
+        updates = []
+        # The below will be 1 if nonNormalized momentum, and (1-momentum) if I am using normalized momentum.
+        multiplierForCurrentGradUpdateForNonNormalizedOrNormalizedMomentum = 1.0 - self._momentum * self._momentumTypeNONNormalized0orNormalized1
+        
+        for param, grad, accu, v, param_ma in zip( self._params_to_opt, grads, self._accu_grad_squared, self._velocities_for_mom, self._ma_params_to_out ):
+            accu_new = self._rho * accu + (1 - self._rho) * tf.square(grad)
+            stepToGradientDirection = multiplierForCurrentGradUpdateForNonNormalizedOrNormalizedMomentum * (self._learning_rate * grad / tf.sqrt(accu_new + self._eps))
+            newVelocity = self._momentum * v - stepToGradientDirection
+            
+            if self._classicMomentum0OrNesterov1 == 0 :
+                updateToParam = newVelocity
+            else :  # Nesterov
+                updateToParam = self._momentum * newVelocity - stepToGradientDirection
+                
+            
+            updates.append( tf.compat.v1.assign(ref=accu, value=accu_new, validate_shape=True) )
+            updates.append( tf.compat.v1.assign(ref=v, value=newVelocity, validate_shape=True) )  # I can do (1-mom)*learnRate*grad.
+            w_new = param+updateToParam
+            updates.append( tf.compat.v1.assign(ref=param, value=w_new, validate_shape=True) )
+            # Calculating Moving Average
+            # TODO[gf4417] Change this to be an exponential moving avergae (perhaps compare the two)
+            updates.append( tf.compat.v1.assign(ref=param_ma, value=param_ma*0.99 + w_new, validate_shape=True) )
+            
+        return updates
+
+
 """
 From https://github.com/lisa-lab/pylearn2/pull/136#issuecomment-10381617 :
 ClassicMomentum:

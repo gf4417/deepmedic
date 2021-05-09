@@ -92,6 +92,14 @@ class Block(object):
             total_params += block.trainable_params() # concat lists
         return total_params
     
+    def ma_trainable_params(self):
+        total_params = []
+        for layer in self._layers:
+            total_params += layer.ma_trainable_params() # concat lists
+        for block in self._target_blocks:
+            total_params += block.ma_trainable_params() # concat lists
+        return total_params
+    
     def params_for_L1_L2_reg(self):
         total_params = []
         for layer in self._layers:
