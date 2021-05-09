@@ -95,7 +95,7 @@ class Trainer(object):
         
         
     ############## All the logic wrt cost / regularizers should be done here ##############
-    def compute_costs(self, log, p_y_given_x): # Needs to be run with initialized self._num_epochs_trained_tfv
+    def compute_costs(self, log, p_y_given_x, p_y_given_x_ma): # Needs to be run with initialized self._num_epochs_trained_tfv
         if not self._total_cost is None:
             log.print3("ERROR: Problem in Trainer. It was called to setup the total cost, but it was not None."+\
                        "\n\t This should not happen. Setup should be called only once.\n Exiting!")
@@ -122,6 +122,10 @@ class Trainer(object):
             log.print3("COST: Using adaptive cross entropy with weight: " +str(self._losses_and_weights["ace_w"]))
             w_per_cl_vec = self._compute_w_per_class_vector_for_xentr(self._net.num_classes, y_gt)
             cost += self._losses_and_weights["ace_w"] * cfs.ace(p_y_given_x, y_gt, weightPerClass=w_per_cl_vec)
+        if "m_teach" in self._losses_and_weights and self._losses_and_weights["m_teach"] is not None:
+            log.print3("COST: Using mean teacher: " +str(self._losses_and_weights["m_teach"]))
+            # TODO[gf4417] Implement mean teacher cost function with consistency regularisation.
+
             
         cost_L1_reg = self._L1_reg_weight * cfs.cost_L1(self._net.params_for_L1_L2_reg())
         cost_L2_reg = self._L2_reg_weight * cfs.cost_L2(self._net.params_for_L1_L2_reg())
@@ -159,7 +163,6 @@ class Trainer(object):
         
         # Optimizer
         params_to_opt = self._net.get_trainable_params(log, self._indicesOfLayersPerPathwayTypeToFreeze)
-        teacher_params_to_out = self._net.get_teacher_trainable_params(log, self._indicesOfLayersPerPathwayTypeToFreeze)
         if sgd0orAdam1orRmsProp2 == 0:
             self._optimizer = optimizers_dm.SgdOptimizer( params_to_opt,
                                                           self._curr_lr,
@@ -181,6 +184,7 @@ class Trainer(object):
                                                               rhoParamForRmsProp,
                                                               epsilonForRmsProp  )
         elif sgd0orAdam1orRmsProp2 == 3:
+            teacher_params_to_out = self._net.get_teacher_trainable_params(log, self._indicesOfLayersPerPathwayTypeToFreeze)
             self._optimizer = optimizers_dm.RmsPropOptimizerWithTeacher( params_to_opt,
                                                                         teacher_params_to_out,
                                                                         self._curr_lr,

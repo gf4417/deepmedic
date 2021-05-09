@@ -124,10 +124,12 @@ class Cnn3d(object):
         return self._feeds_main[str_train_val_test]
     
     
-    def setup_ops_n_feeds_to_train(self, log, inp_plchldrs, p_y_given_x, total_cost, updates_of_params_wrt_total_cost) :
+    def setup_ops_n_feeds_to_train(self, log, inp_plchldrs, p_y_given_x, inp_plchldrs_ma, p_y_given_x_ma, total_cost, updates_of_params_wrt_total_cost) :
         log.print3("...Building the training function...")
         
         y_gt = self._output_gt_tensor_feeds['train']['y_gt']
+        # MeanTeacher
+        y_ma_gt = self._output_gt_tensor_feeds['train']['y_ma_gt']
         y_bg_cl = self._output_gt_tensor_feeds['train']['y_bg_cl']
         
         #================BATCH NORMALIZATION ROLLING AVERAGE UPDATES======================
@@ -146,6 +148,11 @@ class Cnn3d(object):
             self._feeds_main['train']['x_sub_'+str(subpath_i)] = inp_plchldrs['x_sub_'+str(subpath_i)]
         self._feeds_main['train']['y_gt'] = y_gt
         self._feeds_main['train']['y_bg_cl'] = y_bg_cl
+
+        self._feeds_main['train']['y_ma_gt'] = y_ma_gt
+        self._feeds_main['train']['x_ma'] = inp_plchldrs['x']
+        for subpath_i in range(self.numSubsPaths) : # if there are subsampled paths...
+            self._feeds_main['train']['x_ma_sub_'+str(subpath_i)] = inp_plchldrs['x_sub_'+str(subpath_i)]
         
         log.print3("Done.")
         
@@ -370,6 +377,8 @@ class Cnn3d(object):
         self._output_gt_tensor_feeds['val']['y_gt'] = tf.compat.v1.placeholder(dtype="int32", shape=[None, None, None, None], name="y_val")
         
         self._output_gt_tensor_feeds['train']['y_bg_cl'] = tf.compat.v1.placeholder(dtype="bool", shape=[None, None], name="y_train_bg_cl")
+
+        self._output_gt_tensor_feeds['train']['y_ma_gt'] = tf.compat.v1.placeholder(dtype="int32", shape=[None, None, None, None], name="y_ma_train")
         
         log.print3("Finished building the CNN's model.")
         

@@ -113,12 +113,17 @@ class TrainSession(Session):
                     p_y_given_x_val    = cnn3d.apply(inp_plchldrs_val, 'infer', 'val', verbose=True, log=self._log)
                     p_y_given_x_test   = cnn3d.apply(inp_plchldrs_test, 'infer', 'test', verbose=True, log=self._log)
                     
+                    # Mean Teacher Case
+                    inp_plchldrs_train_ma, inp_shapes_per_path_train_ma = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('train'), 'train')
+                    p_y_given_x_train_ma  = cnn3d.apply_ma(inp_plchldrs_train, 'train', 'train', verbose=True, log=self._log)
+
+                    
             # No explicit device assignment for the rest.
             # Because trained has piecewise_constant that is only on cpu, and so is saver.
             with tf.compat.v1.variable_scope("trainer"):
                 self._log.print3("=========== Building Trainer ===========\n")
                 trainer = Trainer(*(self._params.get_args_for_trainer() + [cnn3d]))
-                trainer.compute_costs(self._log, p_y_given_x_train)
+                trainer.compute_costs(self._log, p_y_given_x_train, p_y_given_x_train_ma)
                 trainer.create_optimizer(*self._params.get_args_for_optimizer())  # Trainer and net connect here.
 
             tensorboard_loggers = self.create_tensorboard_loggers(['train', 'val'],
@@ -129,6 +134,8 @@ class TrainSession(Session):
             self._log.print3("=========== Compiling the Training Function ===========")
             self._log.print3("=======================================================\n")
             cnn3d.setup_ops_n_feeds_to_train(self._log,
+                                             inp_plchldrs_train,
+                                             p_y_given_x_train,
                                              inp_plchldrs_train,
                                              p_y_given_x_train,
                                              trainer.get_total_cost(),
