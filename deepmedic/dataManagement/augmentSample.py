@@ -86,11 +86,12 @@ def random_rotation_90(channels, gt_lbls, probs_rot_90=None):
     # probs_rot_90: {'xy': {'0': fl, '90': fl, '180': fl, '270': fl},
     #                'yz': {'0': fl, '90': fl, '180': fl, '270': fl},
     #                'xz': {'0': fl, '90': fl, '180': fl, '270': fl} }
-    if probs_rot_90 is None:
-        return channels, gt_lbls, []
+    rot_performed = [[0 for _ in range(3)] for _ in range(3)]   
 
-    rot_performed = []   
-    for key, plane_axes in zip( ['xy', 'yz', 'xz'], [(0,1), (1,2), (0,2)] ) :
+    if probs_rot_90 is None:
+        return channels, gt_lbls, rot_performed
+    
+    for i, (key, plane_axes) in enumerate(zip( ['xy', 'yz', 'xz'], [(0,1), (1,2), (0,2)] )) :
         probs_plane = probs_rot_90[key]
         
         if probs_plane is None:
@@ -111,7 +112,9 @@ def random_rotation_90(channels, gt_lbls, probs_rot_90=None):
         for path_idx in range(len(channels)):
             channels[path_idx] = np.rot90(channels[path_idx], k=rot_90_xtimes, axes = [axis+1 for axis in plane_axes]) # + 1 cause [0] is channels.
         gt_lbls = np.rot90(gt_lbls, k=rot_90_xtimes, axes = plane_axes)
-        rot_performed.append((plane_axes, rot_90_xtimes))
+        rot_performed[i][0] = rot_90_xtimes
+        rot_performed[i][1] = plane_axes[0]
+        rot_performed[i][2] = plane_axes[1]
         
     return channels, gt_lbls, rot_performed
 

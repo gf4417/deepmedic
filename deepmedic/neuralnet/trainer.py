@@ -104,6 +104,7 @@ class Trainer(object):
         # Cost functions
         cost = 0
         y_gt = self._net._output_gt_tensor_feeds['train']['y_gt']
+        ma_aug = self._net._output_gt_tensor_feeds['train']['ma_aug']
         y_bg_cl = self._net._output_gt_tensor_feeds['train']['y_bg_cl']
         if "xentr" in self._losses_and_weights and self._losses_and_weights["xentr"] is not None:
             log.print3("COST: Using cross entropy with weight: " +str(self._losses_and_weights["xentr"]))
@@ -125,7 +126,7 @@ class Trainer(object):
         if "m_teach" in self._losses_and_weights and self._losses_and_weights["m_teach"] is not None:
             log.print3("COST: Using mean teacher: " +str(self._losses_and_weights["m_teach"]))
             # TODO[gf4417] Implement mean teacher cost function with consistency regularisation.
-            cost += self._losses_and_weights["m_teach"] * cfs.consistency_reg(p_y_given_x, p_y_given_x_ma)
+            cost += self._losses_and_weights["m_teach"] * cfs.consistency_reg(p_y_given_x, p_y_given_x_ma, ma_aug)
 
             
         cost_L1_reg = self._L1_reg_weight * cfs.cost_L1(self._net.params_for_L1_L2_reg())

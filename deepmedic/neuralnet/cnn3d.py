@@ -130,6 +130,8 @@ class Cnn3d(object):
         y_gt = self._output_gt_tensor_feeds['train']['y_gt']
         # MeanTeacher
         y_ma_gt = self._output_gt_tensor_feeds['train']['y_ma_gt']
+        ma_aug = self._output_gt_tensor_feeds['train']['ma_aug']
+
         y_bg_cl = self._output_gt_tensor_feeds['train']['y_bg_cl']
         
         #================BATCH NORMALIZATION ROLLING AVERAGE UPDATES======================
@@ -150,6 +152,7 @@ class Cnn3d(object):
         self._feeds_main['train']['y_bg_cl'] = y_bg_cl
 
         self._feeds_main['train']['y_ma_gt'] = y_ma_gt
+        self._feeds_main['train']['ma_aug'] = ma_aug
         self._feeds_main['train']['x_ma'] = inp_plchldrs['x']
         for subpath_i in range(self.numSubsPaths) : # if there are subsampled paths...
             self._feeds_main['train']['x_ma_sub_'+str(subpath_i)] = inp_plchldrs['x_sub_'+str(subpath_i)]
@@ -379,6 +382,7 @@ class Cnn3d(object):
         self._output_gt_tensor_feeds['train']['y_bg_cl'] = tf.compat.v1.placeholder(dtype="bool", shape=[None, None], name="y_train_bg_cl")
 
         self._output_gt_tensor_feeds['train']['y_ma_gt'] = tf.compat.v1.placeholder(dtype="int32", shape=[None, None, None, None], name="y_ma_train")
+        self._output_gt_tensor_feeds['train']['ma_aug'] = tf.compat.v1.placeholder(dtype="int32", shape=[None, None, None], name="y_ma_train")
         
         log.print3("Finished building the CNN's model.")
         

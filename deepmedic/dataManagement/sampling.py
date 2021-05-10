@@ -209,7 +209,6 @@ def get_samples_for_subepoch(log,
                 mp_pool.terminate()
                 mp_pool.join()
 
-    log.print3(sampler_id + " :=:=:=:=:=:= Before shuffle size: " + str(len(channs_of_samples_per_path)) + " " + str(len(lbls_predicted_part_of_samples)) + " " + str(len(channs_ma_of_samples_per_path)) + " " + str(len(lbls_ma_predicted_part_of_samples)))
     # Got all samples for subepoch. Now shuffle them, together segments and their labels.
     (channs_of_samples_per_path,
      lbls_predicted_part_of_samples,
@@ -220,7 +219,7 @@ def get_samples_for_subepoch(log,
     log.print3(sampler_id + " TIMING: Sampling for next [" + tr_or_val_str_log +
                "] lasted: {0:.1f}".format(time.time() - start_time_sampling) + " secs.")
 
-    log.print3(sampler_id + " :=:=:=:=:=:= After shuffle size: " + str(len(channs_of_samples_per_path)) + " " + str(len(lbls_predicted_part_of_samples)) + " " + str(len(channs_ma_of_samples_per_path)) + " " + str(len(lbls_ma_predicted_part_of_samples)))
+    log.print3(sampler_id + " :=:=:=:=:=:= After shuffle size: " + str(len(channs_of_samples_per_path)) + " " + str(len(lbls_predicted_part_of_samples)) + " " + str(len(channs_ma_of_samples_per_path)) + " " + str(len(lbls_ma_predicted_part_of_samples)) + " " + str(aug_ma_performed[0][0][0]))
 
     log.print3(sampler_id + " :=:=:=:=:=:= Finished sampling for next [" + tr_or_val_str_log + "] =:=:=:=:=:=:")
 
@@ -333,7 +332,7 @@ def load_subj_and_sample(job_idx,
     lbls_predicted_part_of_samples = []  # Labels only for the central/predicted part of segments.
     channs_ma_of_samples_per_path = [[] for i in range(cnn3d.getNumPathwaysThatRequireInput())]
     lbls_ma_predicted_part_of_samples = []  # Labels only for the central/predicted part of segments.
-    aug_ma_performed = []
+    augs_ma_performed = []
     background_classes_of_samples = []
 
     dims_hres_segment = inp_shapes_per_path[0]
@@ -449,9 +448,10 @@ def load_subj_and_sample(job_idx,
                 channs_ma_of_samples_per_path[pathway_i].append(channs_ma_of_sample_per_path[pathway_i])
             lbls_predicted_part_of_samples.append(lbls_predicted_part_of_sample)
             lbls_ma_predicted_part_of_samples.append(lbls_ma_predicted_part_of_sample)
-            aug_ma_performed.append(aug_ma_performed)
+            augs_ma_performed.append(aug_ma_performed)
             background_classes_of_samples.append(background_classes_list)
         
+    log.print3(job_id + " aug_performed " + str(augs_ma_performed) + " " + str(len(lbls_ma_predicted_part_of_samples)))
     log.print3(job_id + str_samples_per_cat)
     log.print3(job_id + " TIMING: " +
                "[Load: {0:.1f}".format(time_load) + "] "
@@ -460,7 +460,7 @@ def load_subj_and_sample(job_idx,
                "[Sample Coords: {0:.1f}".format(time_sample_idxs) + "] " +
                "[Extract Sampl: {0:.1f}".format(time_extr_samples) + "] " +
                "[Augm-Samples: {0:.1f}".format(time_augm_samples) + "] secs")
-    return (channs_of_samples_per_path, lbls_predicted_part_of_samples, background_classes_of_samples, channs_ma_of_samples_per_path, lbls_ma_predicted_part_of_samples, aug_ma_performed)
+    return (channs_of_samples_per_path, lbls_predicted_part_of_samples, background_classes_of_samples, channs_ma_of_samples_per_path, lbls_ma_predicted_part_of_samples, augs_ma_performed)
 
 
 # roi_mask_filename and roiMinusLesion_mask_filename can be passed "no".
