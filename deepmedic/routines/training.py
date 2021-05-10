@@ -58,12 +58,11 @@ def process_in_batches(log,
             feeds = cnn3d.get_main_feeds('train')
             
             # TODO[gf4417] figure out how to do this.
-            if channs_ma_samples_per_path is not None and lbls_ma_samples_per_path is not None and rot_params is not None:
-                feeds_dict = {feeds['x_ma']: channs_ma_samples_per_path[0][min_idx_batch: max_idx_batch]}
-                for subs_path_i in range(cnn3d.numSubsPaths):
-                    x_batch_sub_path = channs_ma_samples_per_path[subs_path_i + 1][min_idx_batch: max_idx_batch]
-                    feeds_dict.update({feeds['x_ma_sub_' + str(subs_path_i)]: x_batch_sub_path})
-                feeds_dict.update({feeds['y_ma_gt']: lbls_ma_samples_per_path[min_idx_batch: max_idx_batch]})
+            feeds_dict = {feeds['x_ma']: channs_ma_samples_per_path[0][min_idx_batch: max_idx_batch]}
+            for subs_path_i in range(cnn3d.numSubsPaths):
+                x_batch_sub_path = channs_ma_samples_per_path[subs_path_i + 1][min_idx_batch: max_idx_batch]
+                feeds_dict.update({feeds['x_ma_sub_' + str(subs_path_i)]: x_batch_sub_path})
+            feeds_dict.update({feeds['y_ma_gt']: lbls_ma_samples_per_path[min_idx_batch: max_idx_batch]})
 
             feeds_dict = {feeds['x']: channs_samples_per_path[0][min_idx_batch: max_idx_batch]}
             for subs_path_i in range(cnn3d.numSubsPaths):
@@ -293,12 +292,16 @@ def do_training(sessionTf,
                         (channs_samples_per_path_val,
                          lbls_samples_per_path_val,
                          bg_classes_per_path_val,
-                         _, _, _) = get_samples_for_subepoch(*args_for_sampling_val)
+                         channs_ma_samples_per_path_tr,
+                         lbls_ma_samples_per_path_tr,
+                         rot_params) = get_samples_for_subepoch(*args_for_sampling_val)
                     elif sampling_job_submitted_val:  # done parallel with training of previous epoch.
                         (channs_samples_per_path_val,
                          lbls_samples_per_path_val,
                          bg_classes_per_path_val,
-                         _, _, _) = sampling_job_val.get()
+                         channs_ma_samples_per_path_tr,
+                         lbls_ma_samples_per_path_tr,
+                         rot_params) = sampling_job_val.get()
                         sampling_job_submitted_val = False
                     else:  # Not previously submitted in case of first epoch or after a full-volumes validation.
                         assert subep == 0
@@ -308,7 +311,9 @@ def do_training(sessionTf,
                         (channs_samples_per_path_val,
                          lbls_samples_per_path_val,
                          bg_classes_per_path_val,
-                         _, _, _) = sampling_job_val.get()
+                         channs_ma_samples_per_path_tr,
+                         lbls_ma_samples_per_path_tr,
+                         rot_params) = sampling_job_val.get()
                         sampling_job_submitted_val = False
 
                     # ----------- SUBMIT PARALLEL JOB TO GET TRAINING DATA FOR NEXT TRAINING -----------------
@@ -333,9 +338,9 @@ def do_training(sessionTf,
                                        channs_samples_per_path_val,
                                        lbls_samples_per_path_val,
                                        bg_classes_per_path_val,
-                                       None,
-                                       None,
-                                       None)
+                                       channs_ma_samples_per_path_tr,
+                                       lbls_ma_samples_per_path_tr,
+                                       rot_params)
                     log.print3("TIMING: Validation on batches of subepoch #" + str(subep) +\
                                " lasted: {0:.1f}".format(time.time() - start_time_val_subep) + " secs.")
 

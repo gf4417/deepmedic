@@ -22,6 +22,7 @@ from deepmedic.dataManagement.io import load_volume
 from deepmedic.neuralnet.pathwayTypes import PathwayTypes as pt
 from deepmedic.dataManagement.preprocessing import pad_imgs_of_case, normalize_int_of_subj, calc_border_int_of_3d_img
 from deepmedic.dataManagement.augmentSample import augment_sample
+from deepmedic.dataManagement.augmentSample import augment_sample_rand_rot
 from deepmedic.dataManagement.augmentImage import augment_imgs_of_case
 
 
@@ -169,7 +170,7 @@ def get_samples_for_subepoch(log,
                          background_classes_of_samples_from_job,
                          channs_ma_samples_from_job_per_path, 
                          lbls_ma_predicted_part_samples_from_job, 
-                         aug_ma_performed) = jobs[job_idx].get(timeout=60)
+                         aug_ma_performed_from_job) = jobs[job_idx].get(timeout=60)
                         for pathway_i in range(cnn3d.getNumPathwaysThatRequireInput()):
                             # concat does not copy.
                             channs_of_samples_per_path[pathway_i] += channs_samples_from_job_per_path[pathway_i]

@@ -16,7 +16,7 @@ def augment_sample(channels, gt_lbls, prms):
     if prms is not None:
         channels = random_histogram_distortion(channels, prms['hist_dist'])
         channels, gt_lbls = random_flip(channels, gt_lbls, prms['reflect'])
-        channels, gt_lbls, _, _ = random_rotation_90(channels, gt_lbls, prms['rotate90'])
+        channels, gt_lbls, _ = random_rotation_90(channels, gt_lbls, prms['rotate90'])
         
     return channels, gt_lbls
 
@@ -28,9 +28,9 @@ def augment_sample_rand_rot(channels, gt_lbls):
             'yz': {'0': 0.25, '90': 0.25, '180': 0.25, '270': 0.25},
             'xz': {'0': 0.25, '90': 0.25, '180': 0.25, '270': 0.25} }
 
-    channels, gt_lbls, rot_90_xtimes, plane_axes = random_rotation_90(channels, gt_lbls, prms)
+    channels, gt_lbls, rot_performed = random_rotation_90(channels, gt_lbls, prms)
         
-    return channels, gt_lbls, (rot_90_xtimes, plane_axes)
+    return channels, gt_lbls, rot_performed
 
 def random_histogram_distortion(channels, prms):
     # Shift and scale the histogram of each channel.
@@ -87,8 +87,9 @@ def random_rotation_90(channels, gt_lbls, probs_rot_90=None):
     #                'yz': {'0': fl, '90': fl, '180': fl, '270': fl},
     #                'xz': {'0': fl, '90': fl, '180': fl, '270': fl} }
     if probs_rot_90 is None:
-        return channels, gt_lbls
-        
+        return channels, gt_lbls, []
+
+    rot_performed = []   
     for key, plane_axes in zip( ['xy', 'yz', 'xz'], [(0,1), (1,2), (0,2)] ) :
         probs_plane = probs_rot_90[key]
         
@@ -110,7 +111,8 @@ def random_rotation_90(channels, gt_lbls, probs_rot_90=None):
         for path_idx in range(len(channels)):
             channels[path_idx] = np.rot90(channels[path_idx], k=rot_90_xtimes, axes = [axis+1 for axis in plane_axes]) # + 1 cause [0] is channels.
         gt_lbls = np.rot90(gt_lbls, k=rot_90_xtimes, axes = plane_axes)
+        rot_performed.append((plane_axes, rot_90_xtimes))
         
-    return channels, gt_lbls, rot_90_xtimes, plane_axes
+    return channels, gt_lbls, rot_performed
 
 
