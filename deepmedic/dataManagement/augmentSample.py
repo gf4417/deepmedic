@@ -24,10 +24,10 @@ def augment_sample_rand_rot(channels, gt_lbls):
     # channels: list (x pathways) of np arrays [channels, x, y, z]. Whole volumes, channels of a case.
     # gt_lbls: np array of shape [x,y,z]
     # prms: None or Dictionary, with parameters of each augmentation type. }
-    prms = {'xy': {'0': 0.25, '90': 0.25, '180': 0.25, '270': 0.25},
-            'yz': {'0': 0.25, '90': 0.25, '180': 0.25, '270': 0.25},
-            'xz': {'0': 0.25, '90': 0.25, '180': 0.25, '270': 0.25} }
-
+    # prms = {'xy': {'0': 0.25, '90': 0.25, '180': 0.25, '270': 0.25},
+    #         'yz': {'0': 0.25, '90': 0.25, '180': 0.25, '270': 0.25},
+    #         'xz': {'0': 0.25, '90': 0.25, '180': 0.25, '270': 0.25} }
+    prms = None
     channels, gt_lbls, rot_performed = random_rotation_90(channels, gt_lbls, prms)
         
     return channels, gt_lbls, rot_performed
@@ -114,5 +114,4 @@ def random_rotation_90(channels, gt_lbls, probs_rot_90=None):
         rot_performed.append((plane_axes, rot_90_xtimes))
         
     return channels, gt_lbls, rot_performed
-
 

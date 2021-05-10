@@ -209,6 +209,7 @@ def get_samples_for_subepoch(log,
                 mp_pool.terminate()
                 mp_pool.join()
 
+    log.print3(sampler_id + " :=:=:=:=:=:= Before shuffle size: " + str(len(channs_of_samples_per_path)) + " " + str(len(lbls_predicted_part_of_samples)) + " " + str(len(channs_ma_of_samples_per_path)) + " " + str(len(lbls_ma_predicted_part_of_samples)))
     # Got all samples for subepoch. Now shuffle them, together segments and their labels.
     (channs_of_samples_per_path,
      lbls_predicted_part_of_samples,
@@ -218,6 +219,8 @@ def get_samples_for_subepoch(log,
      aug_ma_performed) = shuffle_samples(channs_of_samples_per_path, lbls_predicted_part_of_samples, background_classes_of_samples, channs_ma_of_samples_per_path, lbls_ma_predicted_part_of_samples, aug_ma_performed)
     log.print3(sampler_id + " TIMING: Sampling for next [" + tr_or_val_str_log +
                "] lasted: {0:.1f}".format(time.time() - start_time_sampling) + " secs.")
+
+    log.print3(sampler_id + " :=:=:=:=:=:= After shuffle size: " + str(len(channs_of_samples_per_path)) + " " + str(len(lbls_predicted_part_of_samples)) + " " + str(len(channs_ma_of_samples_per_path)) + " " + str(len(lbls_ma_predicted_part_of_samples)))
 
     log.print3(sampler_id + " :=:=:=:=:=:= Finished sampling for next [" + tr_or_val_str_log + "] =:=:=:=:=:=:")
 
@@ -431,8 +434,8 @@ def load_subj_and_sample(job_idx,
             time_augm_sample_0 = time.time()
             (channs_ma_of_sample_per_path,
              lbls_ma_predicted_part_of_sample,
-             aug_ma_performed) = augment_sample_rand_rot(channs_of_sample_per_path,
-                                                             lbls_predicted_part_of_sample
+             aug_ma_performed) = augment_sample_rand_rot(channs_of_sample_per_path.copy(),
+                                                             lbls_predicted_part_of_sample.copy()
                                                              )
             (channs_of_sample_per_path,
              lbls_predicted_part_of_sample) = augment_sample(channs_of_sample_per_path,
@@ -763,8 +766,8 @@ def shuffle_samples(channs_of_samples_per_path, lbls_predicted_part_of_samples, 
     shuffled_background_classes_of_samples = sublists_with_shuffled_samples[n_paths_taking_inp + 1]
 
     shuffled_channs_ma_of_samples_per_path = [sublist_for_path for sublist_for_path in
-                                           sublists_with_shuffled_samples[(n_paths_taking_inp + 2):n_paths_taking_inp_ma]]
-    shuffled_lbls_ma_predicted_part_of_samples = sublists_with_shuffled_samples[(n_paths_taking_inp + 2+ n_paths_taking_inp_ma)]
+                                           sublists_with_shuffled_samples[(n_paths_taking_inp + 2):(n_paths_taking_inp + 2 + n_paths_taking_inp_ma)]]
+    shuffled_lbls_ma_predicted_part_of_samples = sublists_with_shuffled_samples[(n_paths_taking_inp + 2 + n_paths_taking_inp_ma)]
     shuffled_aug_ma_performed = sublists_with_shuffled_samples[(n_paths_taking_inp + 2 + n_paths_taking_inp_ma + 1)]
 
     return (shuffled_channs_of_samples_per_path, shuffled_lbls_predicted_part_of_samples, shuffled_background_classes_of_samples, shuffled_channs_ma_of_samples_per_path, shuffled_lbls_ma_predicted_part_of_samples, shuffled_aug_ma_performed)
