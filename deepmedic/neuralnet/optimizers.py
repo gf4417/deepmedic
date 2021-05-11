@@ -240,7 +240,8 @@ class RmsPropOptimizerWithTeacher(Optimizer):
             updates.append( tf.compat.v1.assign(ref=param, value=w_new, validate_shape=True) )
             # Calculating Moving Average
             # TODO[gf4417] Change this to be an exponential moving avergae (perhaps compare the two)
-            updates.append( tf.compat.v1.assign(ref=param_ma, value=param_ma*0.99 + w_new, validate_shape=True) )
+            alpha = 0.99
+            updates.append( tf.compat.v1.assign(ref=param_ma, value=param_ma*(alpha) + w_new*(1-alpha), validate_shape=True) )
             
         return updates
 
