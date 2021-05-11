@@ -119,12 +119,15 @@ class Trainer(object):
             log.print3("ACE: y_bg_cl - " + str(y_bg_cl))
             cost += self._losses_and_weights["ace"] * cfs.ace(p_y_given_x, y_gt, y_bg_cl)
         if "ace_w" in self._losses_and_weights and self._losses_and_weights["ace_w"] is not None:
+            # TODO[gf4417] Finish this implementation.
             log.print3("COST: Using adaptive cross entropy with weight: " +str(self._losses_and_weights["ace_w"]))
             w_per_cl_vec = self._compute_w_per_class_vector_for_xentr(self._net.num_classes, y_gt)
             cost += self._losses_and_weights["ace_w"] * cfs.ace(p_y_given_x, y_gt, weightPerClass=w_per_cl_vec)
         if "m_teach" in self._losses_and_weights and self._losses_and_weights["m_teach"] is not None:
             log.print3("COST: Using mean teacher: " +str(self._losses_and_weights["m_teach"]))
             # TODO[gf4417] Implement mean teacher cost function with consistency regularisation.
+            w_per_cl_vec = self._compute_w_per_class_vector_for_xentr(self._net.num_classes, y_gt)
+            cost += self._losses_and_weights["m_teach"] * cfs.x_entr_mean_teacher(p_y_given_x, y_gt, w_per_cl_vec, y_bg_cl)
             cost += self._losses_and_weights["m_teach"] * cfs.consistency_reg(p_y_given_x, p_y_given_x_ma)
 
             

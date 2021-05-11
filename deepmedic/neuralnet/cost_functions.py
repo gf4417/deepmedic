@@ -27,6 +27,26 @@ def x_entr( p_y_given_x_train, y_gt, weightPerClass, eps=1e-6 ):
     
     return - (1./ num_samples) * tf.reduce_sum( weighted_log_p_y_given_x_train * y_one_hot )
 
+def x_entr_mean_teacher( p_y_given_x_train, y_gt, weightPerClass, y_data, eps=1e-6 ):
+    # p_y_given_x_train : tensor5 [batchSize, classes, r, c, z]
+    # y: T.itensor4('y'). Dimensions [batchSize, r, c, z]
+    # weightPerClass is a vector with 1 element per class.
+    # y_data: ... [batchsize, classes]
+    
+    #Weighting the cost of the different classes in the cost-function, in order to counter class imbalance.
+    log_p_y_given_x_train = tf.math.log( p_y_given_x_train + eps) # [batchSize, classes, r, c, z]
+    
+    weightPerClass5D = tf.reshape(weightPerClass, shape=[1, tf.shape(p_y_given_x_train)[1], 1, 1, 1]) # [1, classes, 1,1,1]
+    weighted_log_p_y_given_x_train = log_p_y_given_x_train * weightPerClass5D # [batchSize, classes, r, c, z]
+    
+    y_one_hot = tf.one_hot( indices=y_gt, depth=tf.shape(p_y_given_x_train)[1], axis=1, dtype="float32" ) # [batchSize, classes, r, c, z]
+    
+    num_samples = tf.cast( tf.reduce_prod( tf.shape(y_gt) ), "float32")
+
+    batches_to_include = tf.reshape( tf.cast( tf.math.logical_not( tf.math.reduce_any(y_data, axis=1) ), "float32" ), shape=[-1,1,1,1,1] ) 
+    
+    return - (1./ num_samples) * tf.reduce_sum( weighted_log_p_y_given_x_train * y_one_hot * batches_to_include )
+
 
 def iou(p_y_given_x_train, y_gt, eps=1e-5):
     # Intersection-Over-Union / Jaccard: https://en.wikipedia.org/wiki/Jaccard_index
