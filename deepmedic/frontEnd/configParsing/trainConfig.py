@@ -126,6 +126,9 @@ class TrainConfig(Config):
     # ======== ADDED. gf4417 =========
     DATA_FOLDER_NAMES = "dataFolderNames"
     BACKGROUND_CLASSES = "backgroundClasses"
+    EMA_DECAY_DURING_RAMPUP = "emaDecayDuringRampup"
+    EMA_DECAY_AFTER_RAMPUP = "emaDecayAfterRampup"
+    PERC_TOTAL_EPOCHS_FOR_RAMPUP = "percTotalEpochsForRampup"
     
     def __init__(self, abs_path_to_cfg):
         Config.__init__(self, abs_path_to_cfg)

@@ -467,6 +467,15 @@ class TrainSessionParameters(object):
             self.rhoRms = cfg[cfg.RHO_RMS] if cfg[cfg.RHO_RMS] is not None else 0.9  # default in paper and seems good
             # 1e-6 was the default in the paper, but blew up the gradients in first try. Never tried 1e-5 yet.
             self.eRms = cfg[cfg.EPS_RMS] if cfg[cfg.EPS_RMS] is not None else 10 ** (-4)
+        elif self.optimizerSgd0Adam1Rms2 == 3:
+            self.b1Adam = "placeholder"
+            self.b2Adam = "placeholder"
+            self.eAdam = "placeholder"
+            self.rhoRms = cfg[cfg.RHO_RMS] if cfg[cfg.RHO_RMS] is not None else 0.9  # default in paper and seems good
+            # 1e-6 was the default in the paper, but blew up the gradients in first try. Never tried 1e-5 yet.
+            self.eRms = cfg[cfg.EPS_RMS] if cfg[cfg.EPS_RMS] is not None else 10 ** (-4)
+            self.ema_decay_after_rampup = cfg[cfg.EMA_DECAY_AFTER_RAMPUP] if cfg[cfg.EMA_DECAY_AFTER_RAMPUP] is not None else 0.999
+            self.ema_decay_during_rampup = cfg[cfg.EMA_DECAY_DURING_RAMPUP] if cfg[cfg.EMA_DECAY_DURING_RAMPUP] is not None else 0.99
         else:
             self.errorRequireOptimizer012()
 
@@ -525,6 +534,8 @@ class TrainSessionParameters(object):
         assert len(self.data_folder_names) == len(self.background_classes)
         assert all([n_classes == len(i) for i in self.background_classes])
 
+        # Mean Teacher Variables
+        self.perc_total_epochs_for_rampup = cfg[cfg.PERC_TOTAL_EPOCHS_FOR_RAMPUP] if cfg[cfg.PERC_TOTAL_EPOCHS_FOR_RAMPUP] is not None else 0.25
 
     def _backwards_compat_with_deprecated_cfg(self, cfg):
         # Augmentation
@@ -762,7 +773,10 @@ class TrainSessionParameters(object):
 
                 # -------- ACE --------
                 self.data_folder_names,
-                self.background_classes
+                self.background_classes,
+
+                # -------- Mean Teacher ---------
+                self.perc_total_epochs_for_rampup
                 ]
         return args
 
@@ -793,6 +807,9 @@ class TrainSessionParameters(object):
                 self.b2Adam,
                 self.eAdam,
                 self.rhoRms,
-                self.eRms
+                self.eRms,
+                # ------ Mean Teacher -------
+                self.ema_decay_during_rampup,
+                self.ema_decay_after_rampup
                 ]
         return args

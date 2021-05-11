@@ -148,7 +148,9 @@ class Trainer(object):
                             b2ParamForAdam,
                             epsilonForAdam,
                             rhoParamForRmsProp,
-                            epsilonForRmsProp
+                            epsilonForRmsProp,
+                            ema_decay_during_rampup,
+                            ema_decay_after_rampup
                             ) :
         log.print3("...Initializing state of the optimizer...")
         
@@ -185,7 +187,7 @@ class Trainer(object):
                                                               rhoParamForRmsProp,
                                                               epsilonForRmsProp  )
         elif sgd0orAdam1orRmsProp2 == 3:
-            teacher_params_to_out = self._net.get_teacher_trainable_params(log, self._indicesOfLayersPerPathwayTypeToFreeze)
+            teacher_params_to_out = self._net.get_ma_trainable_params(log, self._indicesOfLayersPerPathwayTypeToFreeze)
             self._optimizer = optimizers_dm.RmsPropOptimizerWithTeacher( params_to_opt,
                                                                         teacher_params_to_out,
                                                                         self._curr_lr,
@@ -193,9 +195,10 @@ class Trainer(object):
                                                                         momentumTypeNONNormalized0orNormalized1,
                                                                         classicMomentum0OrNesterov1,
                                                                         rhoParamForRmsProp,
-                                                                        epsilonForRmsProp  )
+                                                                        epsilonForRmsProp,
+                                                                        ema_decay_during_rampup,
+                                                                        ema_decay_after_rampup  )
         
-
         
     def get_total_cost(self):
         # Run only after: self.setup_costs(...)
@@ -418,6 +421,8 @@ class Trainer(object):
             sessionTf.run( fetches=self._op_assign_top_mean_val_acc_tfv, feed_dict={ self._tf_plchld_float32: mean_val_acc_of_ep } )
             sessionTf.run( fetches=self._op_assign_epoch_with_top_mean_val_acc_tvf, feed_dict={ self._tf_plchld_int32: num_epochs_trained } )
             
+    def end_optimizer_rampup(self):
+        self._optimizer.end_rampup()
     
 
         

@@ -14,6 +14,7 @@ class Optimizer(object):
     def __init__(self, params_to_opt):
         self._params_to_opt = params_to_opt
         self._initialize_vars()
+        self._rampup = True
     
     # Abstract
     def _initialize_vars(self):
@@ -31,6 +32,9 @@ class Optimizer(object):
     def get_update_ops_given_cost(self, cost) :
         grads = self.get_grads_for_params_responsible(cost)
         return self.get_update_ops_given_grads(grads)
+    
+    def end_rampup(self):
+        self._rampup = False
     
 class SgdOptimizer(Optimizer):
     def __init__(self,
@@ -193,7 +197,9 @@ class RmsPropOptimizerWithTeacher(Optimizer):
                  momentumTypeNONNormalized0orNormalized1,
                  classicMomentum0OrNesterov1,
                  rho,
-                 eps):
+                 eps,
+                 ema_decay_during_rampup,
+                 ema_decay_after_rampup):
         
         self.name = "RmsPropOptimizer"
         
@@ -208,6 +214,9 @@ class RmsPropOptimizerWithTeacher(Optimizer):
         self._velocities_for_mom = None
 
         self._ma_params_to_out = ma_params_to_out
+
+        self._ema_decay_during_rampup = ema_decay_during_rampup
+        self._ema_decay_after_rampup = ema_decay_after_rampup
         
         Optimizer.__init__(self, params_to_opt)
         
@@ -240,11 +249,15 @@ class RmsPropOptimizerWithTeacher(Optimizer):
             updates.append( tf.compat.v1.assign(ref=param, value=w_new, validate_shape=True) )
             # Calculating Moving Average
             # TODO[gf4417] Change this to be an exponential moving avergae (perhaps compare the two)
-            alpha = 0.99
+            if self._rampup:
+                alpha = self._ema_decay_during_rampup
+            else:
+                alpha = self._ema_decay_after_rampup
             updates.append( tf.compat.v1.assign(ref=param_ma, value=param_ma*(alpha) + w_new*(1-alpha), validate_shape=True) )
             
         return updates
 
+    
 
 """
 From https://github.com/lisa-lab/pylearn2/pull/136#issuecomment-10381617 :

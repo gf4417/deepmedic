@@ -185,6 +185,9 @@ def do_training(sessionTf,
                 data_folder_names,
                 background_classes,
 
+                # -------- Mean Teacher ------
+                perc_total_epochs_for_rampup,
+
                 #--------- Sampling Hyperparamas -----
                 inp_shapes_per_path_train,
                 inp_shapes_per_path_val,
@@ -253,6 +256,12 @@ def do_training(sessionTf,
         while n_eps_trained_model < n_epochs:
             epoch = n_eps_trained_model
 
+            # End the ramp up period
+            rampup = True
+            if epoch / n_epochs >= perc_total_epochs_for_rampup:
+                trainer.end_optimizer_rampup()
+                rampup = False
+
             acc_monitor_ep_tr = AccuracyMonitorForEpSegm(log, 0,
                                                          n_eps_trained_model,
                                                          cnn3d.num_classes,
@@ -273,7 +282,7 @@ def do_training(sessionTf,
                 
             log.print3("")
             log.print3("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-            log.print3("~~\t\t\t Starting new Epoch! Epoch #" + str(epoch) + "/" + str(n_epochs) + "  \t\t\t~~")
+            log.print3("~~\t\t\t Starting new Epoch! Epoch #" + str(epoch) + "/" + str(n_epochs) + " [rampup: " + str(rampup) + "]  \t\t\t~~")
             log.print3("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
             start_time_ep = time.time()
 
