@@ -34,8 +34,7 @@ def process_in_batches(log,
                        lbls_samples_per_path,
                        bg_classes_per_path,
                        channs_ma_samples_per_path,
-                       lbls_ma_samples_per_path,
-                       rot_params):
+                       lbls_ma_samples_per_path):
     # Processes batches of subepoch. Performs training or validation. Collects performance metrics.
 
     costs_of_batches = []
@@ -63,7 +62,6 @@ def process_in_batches(log,
                 x_batch_sub_path = channs_ma_samples_per_path[subs_path_i + 1][min_idx_batch: max_idx_batch]
                 feeds_dict.update({feeds['x_ma_sub_' + str(subs_path_i)]: x_batch_sub_path})
             feeds_dict.update({feeds['y_ma_gt']: lbls_ma_samples_per_path[min_idx_batch: max_idx_batch]})
-            feeds_dict.update({feeds['ma_aug']: rot_params[min_idx_batch: max_idx_batch]})
 
             feeds_dict.update({feeds['x']: channs_samples_per_path[0][min_idx_batch: max_idx_batch]})
             for subs_path_i in range(cnn3d.numSubsPaths):
@@ -294,15 +292,13 @@ def do_training(sessionTf,
                          lbls_samples_per_path_val,
                          bg_classes_per_path_val,
                          channs_ma_samples_per_path_val,
-                         lbls_ma_samples_per_path_val,
-                         rot_params_val) = get_samples_for_subepoch(*args_for_sampling_val)
+                         lbls_ma_samples_per_path_val) = get_samples_for_subepoch(*args_for_sampling_val)
                     elif sampling_job_submitted_val:  # done parallel with training of previous epoch.
                         (channs_samples_per_path_val,
                          lbls_samples_per_path_val,
                          bg_classes_per_path_val,
                          channs_ma_samples_per_path_val,
-                         lbls_ma_samples_per_path_val,
-                         rot_params_val) = sampling_job_val.get()
+                         lbls_ma_samples_per_path_val) = sampling_job_val.get()
                         sampling_job_submitted_val = False
                     else:  # Not previously submitted in case of first epoch or after a full-volumes validation.
                         assert subep == 0
@@ -313,8 +309,7 @@ def do_training(sessionTf,
                          lbls_samples_per_path_val,
                          bg_classes_per_path_val,
                          channs_ma_samples_per_path_val,
-                         lbls_ma_samples_per_path_val,
-                         rot_params_val) = sampling_job_val.get()
+                         lbls_ma_samples_per_path_val) = sampling_job_val.get()
                         sampling_job_submitted_val = False
 
                     # ----------- SUBMIT PARALLEL JOB TO GET TRAINING DATA FOR NEXT TRAINING -----------------
@@ -340,8 +335,7 @@ def do_training(sessionTf,
                                        lbls_samples_per_path_val,
                                        bg_classes_per_path_val,
                                        channs_ma_samples_per_path_val,
-                                       lbls_ma_samples_per_path_val,
-                                       rot_params_val)
+                                       lbls_ma_samples_per_path_val)
                     log.print3("TIMING: Validation on batches of subepoch #" + str(subep) +\
                                " lasted: {0:.1f}".format(time.time() - start_time_val_subep) + " secs.")
 
@@ -353,16 +347,13 @@ def do_training(sessionTf,
                      lbls_samples_per_path_tr,
                      bg_classes_per_path_tr,
                      channs_ma_samples_per_path_tr,
-                     lbls_ma_samples_per_path_tr,
-                     rot_params_tr
-                     ) = get_samples_for_subepoch(*args_for_sampling_tr)
+                     lbls_ma_samples_per_path_tr) = get_samples_for_subepoch(*args_for_sampling_tr)
                 elif sampling_job_submitted_train:  # done parallel with train/val of previous epoch.
                     (channs_samples_per_path_tr,
                      lbls_samples_per_path_tr,
                      bg_classes_per_path_tr,
                      channs_ma_samples_per_path_tr,
-                     lbls_ma_samples_per_path_tr,
-                     rot_params_tr) = sampling_job_tr.get()
+                     lbls_ma_samples_per_path_tr) = sampling_job_tr.get()
                     sampling_job_submitted_train = False
                 else:  # Not previously submitted in case of first epoch or after a full-volumes validation.
                     assert subep == 0
@@ -373,8 +364,7 @@ def do_training(sessionTf,
                      lbls_samples_per_path_tr,
                      bg_classes_per_path_tr,
                      channs_ma_samples_per_path_tr,
-                     lbls_ma_samples_per_path_tr,
-                     rot_params_tr) = sampling_job_tr.get()
+                     lbls_ma_samples_per_path_tr) = sampling_job_tr.get()
                     sampling_job_submitted_train = False
 
                 # ----- SUBMIT PARALLEL JOB TO GET VAL / TRAIN (if no val) DATA FOR NEXT SUBEPOCH -----
@@ -391,7 +381,7 @@ def do_training(sessionTf,
                         sampling_job_submitted_train = True
 
                 # ------------------------------ START TRAINING IN BATCHES -----------------------------
-                log.print3("-T-T-T-T- Training for this subepoch... May take a few minutes... -T-T-T-T-" + str(channs_ma_samples_per_path_tr))
+                log.print3("-T-T-T-T- Training for this subepoch... May take a few minutes... -T-T-T-T-")
                 start_time_train_subep = time.time()
                 # Calc num of batches from extracted samples, in case not extracted as much as requested.
                 n_batches_train = len(channs_samples_per_path_tr[0]) // batchsize_train
@@ -406,8 +396,7 @@ def do_training(sessionTf,
                                    lbls_samples_per_path_tr,
                                    bg_classes_per_path_tr,
                                    channs_ma_samples_per_path_tr,
-                                   lbls_ma_samples_per_path_tr,
-                                   rot_params_tr)
+                                   lbls_ma_samples_per_path_tr)
                 log.print3("TIMING: Training on batches of this subepoch #" + str(subep) +\
                            " lasted: {0:.1f}".format(time.time() - start_time_train_subep) + " secs.")
 
