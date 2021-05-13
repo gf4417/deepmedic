@@ -445,6 +445,9 @@ class TrainSessionParameters(object):
 
         self._make_fpaths_for_preds_and_fms(out_folder_preds, out_folder_fms)
 
+        self.ema_decay_after_rampup = 0.999
+        self.ema_decay_during_rampup = 0.99
+
         # ====Optimization=====
         self.learningRate = cfg[cfg.LRATE] if cfg[cfg.LRATE] is not None else 0.001
         self.optimizerSgd0Adam1Rms2 = cfg[cfg.OPTIMIZER] if cfg[cfg.OPTIMIZER] is not None else 2
