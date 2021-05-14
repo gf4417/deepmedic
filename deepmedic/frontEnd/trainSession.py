@@ -114,7 +114,7 @@ class TrainSession(Session):
                     p_y_given_x_test   = cnn3d.apply(inp_plchldrs_test, 'infer', 'test', verbose=True, log=self._log)
                     
                     # Mean Teacher Case
-                    inp_plchldrs_train_ma, inp_shapes_per_path_train_ma = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('train'), 'train')
+                    inp_plchldrs_train_ma, inp_shapes_per_path_train_ma = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('train'), 'teach')
                     p_y_given_x_train_ma  = cnn3d.apply_ma(inp_plchldrs_train, 'train', 'train', verbose=True, log=self._log)
 
                     
@@ -136,8 +136,8 @@ class TrainSession(Session):
             cnn3d.setup_ops_n_feeds_to_train(self._log,
                                              inp_plchldrs_train,
                                              p_y_given_x_train,
-                                             inp_plchldrs_train,
-                                             p_y_given_x_train,
+                                             inp_plchldrs_train_ma,
+                                             p_y_given_x_train_ma,
                                              trainer.get_total_cost(),
                                              trainer.get_param_updates_wrt_total_cost()  # list of ops
                                              )

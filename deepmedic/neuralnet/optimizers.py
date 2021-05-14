@@ -201,7 +201,7 @@ class RmsPropOptimizerWithTeacher(Optimizer):
                  ema_decay_during_rampup,
                  ema_decay_after_rampup):
         
-        self.name = "RmsPropOptimizer"
+        self.name = "RmsPropOptimizerTeacher"
         
         self._learning_rate = learning_rate
         self._momentum = momentum

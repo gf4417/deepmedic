@@ -151,9 +151,9 @@ class Cnn3d(object):
         self._feeds_main['train']['y_bg_cl'] = y_bg_cl
 
         self._feeds_main['train']['y_ma_gt'] = y_ma_gt
-        self._feeds_main['train']['x_ma'] = inp_plchldrs['x']
+        self._feeds_main['train']['x_ma'] = inp_plchldrs_ma['x_ma']
         for subpath_i in range(self.numSubsPaths) : # if there are subsampled paths...
-            self._feeds_main['train']['x_ma_sub_'+str(subpath_i)] = inp_plchldrs['x_sub_'+str(subpath_i)]
+            self._feeds_main['train']['x_ma_sub_'+str(subpath_i)] = inp_plchldrs_ma['x_ma_sub_'+str(subpath_i)]
         
         log.print3("Done.")
         
@@ -209,11 +209,16 @@ class Cnn3d(object):
             return self._setup_inp_plchldrs(train_val_test, inp_shapes_per_path), inp_shapes_per_path
     
     def _setup_inp_plchldrs(self, train_val_test, inp_shapes_per_path): # TODO: REMOVE for eager
-        assert train_val_test in ['train', 'val', 'test']
+        assert train_val_test in ['train', 'val', 'test', 'teach']
         inp_plchldrs = {}
-        inp_plchldrs['x'] = tf.compat.v1.placeholder(dtype="float32", shape=[None, self.pathways[0].get_n_fms_in()]+inp_shapes_per_path[0], name='inp_x_'+train_val_test)
-        for subpath_i in range(self.numSubsPaths): # if there are subsampled paths...
-            inp_plchldrs['x_sub_'+str(subpath_i)] = tf.compat.v1.placeholder(dtype="float32", shape=[None, self.pathways[0].get_n_fms_in()]+inp_shapes_per_path[subpath_i+1], name="inp_x_sub_"+str(subpath_i)+'_' + train_val_test)
+        if train_val_test == 'teach':
+            inp_plchldrs['x_ma'] = tf.compat.v1.placeholder(dtype="float32", shape=[None, self.pathways[0].get_n_fms_in()]+inp_shapes_per_path[0], name='inp_x_ma_'+train_val_test)
+            for subpath_i in range(self.numSubsPaths): # if there are subsampled paths...
+                inp_plchldrs['x_ma_sub_'+str(subpath_i)] = tf.compat.v1.placeholder(dtype="float32", shape=[None, self.pathways[0].get_n_fms_in()]+inp_shapes_per_path[subpath_i+1], name="inp_x_ma_sub_"+str(subpath_i)+'_' + train_val_test)
+        else:
+            inp_plchldrs['x'] = tf.compat.v1.placeholder(dtype="float32", shape=[None, self.pathways[0].get_n_fms_in()]+inp_shapes_per_path[0], name='inp_x_'+train_val_test)
+            for subpath_i in range(self.numSubsPaths): # if there are subsampled paths...
+                inp_plchldrs['x_sub_'+str(subpath_i)] = tf.compat.v1.placeholder(dtype="float32", shape=[None, self.pathways[0].get_n_fms_in()]+inp_shapes_per_path[subpath_i+1], name="inp_x_sub_"+str(subpath_i)+'_' + train_val_test)
         return inp_plchldrs
         
     def make_cnn_model( self,
