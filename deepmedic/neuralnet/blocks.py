@@ -227,6 +227,11 @@ class SoftmaxBlock(Block):
         logits = self._bias_l.apply(input, mode)
         p_y_given_x = tf.nn.softmax(logits/self._temperature, axis=1)
         return p_y_given_x
+    
+    def apply_ma(self, input, mode):
+        logits = self._bias_l.apply_ma(input, mode)
+        p_y_given_x = tf.nn.softmax(logits/self._temperature, axis=1)
+        return p_y_given_x
         
         
     def get_rp_rn_tp_tn(self, p_y_given_x, y_gt):
