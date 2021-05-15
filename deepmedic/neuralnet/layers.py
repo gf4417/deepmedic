@@ -380,15 +380,15 @@ class BatchNormLayer(Layer):
         # mode: String in ["train", "infer"]
         n_channs = input.shape[1]
         
-        if mode == "train":
-            self._new_mu_batch_t, self._new_var_batch_t = tf.nn.moments(input, axes=[0,2,3,4])
-            mu = self._new_mu_batch_t
-            var = self._new_var_batch_t
-        elif mode == "infer":
-            mu = tf.reduce_mean(self._array_mus_for_moving_avg, axis=0)
-            var = tf.reduce_mean(self._array_vars_for_moving_avg, axis=0)
-        else:
-            raise NotImplementedError()
+        # if mode == "train":
+        #     self._new_mu_batch_t, self._new_var_batch_t = tf.nn.moments(input, axes=[0,2,3,4])
+        #     mu = self._new_mu_batch_t
+        #     var = self._new_var_batch_t
+        # elif mode == "infer":
+        mu = tf.reduce_mean(self._array_mus_for_moving_avg, axis=0)
+        var = tf.reduce_mean(self._array_vars_for_moving_avg, axis=0)
+        # else:
+        #     raise NotImplementedError()
         
         # Reshape for broadcast.
         g_resh = tf.reshape(self._ma_g, shape=[1,n_channs,1,1,1])
