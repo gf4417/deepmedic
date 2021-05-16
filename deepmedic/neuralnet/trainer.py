@@ -126,6 +126,7 @@ class Trainer(object):
         if "m_teach" in self._losses_and_weights and self._losses_and_weights["m_teach"] is not None:
             log.print3("COST: Using mean teacher: " +str(self._losses_and_weights["m_teach"]))
             # TODO[gf4417] Implement mean teacher cost function with consistency regularisation.
+            final_logits, final_logits_ma = self._net.get_final_logits()
             w_per_cl_vec = self._compute_w_per_class_vector_for_xentr(self._net.num_classes, y_gt)
             cost += self._losses_and_weights["m_teach"] * cfs.x_entr_mean_teacher(p_y_given_x, y_gt, w_per_cl_vec, y_bg_cl)
             cost += self._losses_and_weights["m_teach"] * cfs.consistency_reg(p_y_given_x, p_y_given_x_ma)

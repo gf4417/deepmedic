@@ -45,6 +45,10 @@ class Cnn3d(object):
         self._ops_main = {'train': {} , 'val': {}, 'test': {}}
         self._feeds_main = {'train': {} , 'val': {}, 'test': {}}
 
+        ######## For mean teacher #######
+        self._final_logits = None
+        self._final_logits_ma = None
+
     
     def getNumSubsPathways(self):
         count = 0
@@ -412,6 +416,7 @@ class Cnn3d(object):
         # ===== Concatenate and final convs ========
         conc_inp_fms = tf.concat(fms_from_paths_to_concat, axis=1)
         logits_no_bias = self.pathways[-1].apply(conc_inp_fms, mode, train_val_test, verbose, log)
+        self._final_logits = logits_no_bias
         # Softmax
         p_y_given_x = self.finalTargetLayer.apply(logits_no_bias, mode)
         
@@ -440,6 +445,7 @@ class Cnn3d(object):
         # ===== Concatenate and final convs ========
         conc_inp_fms = tf.concat(fms_from_paths_to_concat, axis=1)
         logits_no_bias = self.pathways[-1].apply_ma(conc_inp_fms, mode, train_val_test, verbose, log)
+        self._final_logits_ma = logits_no_bias
         # Softmax
         p_y_given_x = self.finalTargetLayer.apply_ma(logits_no_bias, mode)
         
@@ -481,4 +487,6 @@ class Cnn3d(object):
         unpred_margin = [[n_unpred_vox[d]//2, n_unpred_vox[d]-n_unpred_vox[d]//2] for d in range(3)]
         return unpred_margin
     
+    def get_final_logits(self):
+        return self._final_logits, self._final_logits_ma
     
