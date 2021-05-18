@@ -225,14 +225,20 @@ class SoftmaxBlock(Block):
         # NOTE: So, two biases are associated with this layer. self.b which is added in the ouput of the previous layer's output of conv,
         # and this self._bClassLayer that is added only to this final output before the softmax.       
         logits = self._bias_l.apply(input, mode)
+        if mode == "train":
+            self.logits = logits
         p_y_given_x = tf.nn.softmax(logits/self._temperature, axis=1)
         return p_y_given_x
     
     def apply_ma(self, input, mode):
         logits = self._bias_l.apply_ma(input, mode)
+        if mode == "train":
+            self.logits_ma = logits
         p_y_given_x = tf.nn.softmax(logits/self._temperature, axis=1)
         return p_y_given_x
-        
+    
+    def get_logits(self):
+        return self.logits, self.logits_ma
         
     def get_rp_rn_tp_tn(self, p_y_given_x, y_gt):
         # The returned list has (numberOfClasses)x4 integers: >numberOfRealPositives, numberOfRealNegatives, numberOfTruePredictedPositives, numberOfTruePredictedNegatives< for each class (incl background).

@@ -108,7 +108,7 @@ class ConvolutionalLayer(Layer):
         std_init = self._get_std_init(init_method, fms_in, fms_out, conv_kernel_dims)
         w_init = np.asarray(rng.normal(loc=0.0, scale=std_init, size=[fms_out, fms_in] + conv_kernel_dims), dtype='float32')
         self._w = tf.Variable(w_init, dtype="float32", name="W") # w shape: [#FMs of this layer, #FMs of Input, x, y, z]
-        self._ma_w = tf.Variable(w_init, dtype="float32", name="MA_W")
+        self._ma_w = tf.Variable(w_init.copy(), dtype="float32", name="MA_W")
         self._strides = [1,1,1]
         self._pad_mode = pad_mode
         
@@ -170,18 +170,18 @@ class LowRankConvolutionalLayer(ConvolutionalLayer):
         x_subfilter_shape = [fms_out//3, fms_in, conv_kernel_dims[0], 1 if self._rank == 1 else conv_kernel_dims[1], 1]
         w_init = np.asarray(rng.normal(loc=0.0, scale=std_init, size=x_subfilter_shape), dtype='float32')
         self._w_x = tf.Variable(w_init, dtype="float32", name="w_x")
-        self._ma_w_x = tf.Variable(w_init, dtype="float32", name="ma_w_x")
+        self._ma_w_x = tf.Variable(w_init.copy(), dtype="float32", name="ma_w_x")
         
         y_subfilter_shape = [fms_out//3, fms_in, 1, conv_kernel_dims[1], 1 if self._rank == 1 else conv_kernel_dims[2]]
         w_init = np.asarray(rng.normal(loc=0.0, scale=std_init, size=y_subfilter_shape), dtype='float32')
         self._w_y = tf.Variable(w_init, dtype="float32", name="w_y")
-        self._ma_w_y = tf.Variable(w_init, dtype="float32", name="ma_w_y")
+        self._ma_w_y = tf.Variable(w_init.copy(), dtype="float32", name="ma_w_y")
         
         n_fms_left = fms_out - 2*(fms_out//3) # Cause of possibly inexact integer division.
         z_subfilter_shape = [n_fms_left, fms_in, 1 if self._rank == 1 else conv_kernel_dims[0], 1, conv_kernel_dims[2]]
         w_init = np.asarray(rng.normal(loc=0.0, scale=std_init, size=z_subfilter_shape), dtype='float32')
         self._w_z = tf.Variable(w_init, dtype="float32", name="w_z")
-        self._ma_w_z = tf.Variable(w_init, dtype="float32", name="ma_w_z")
+        self._ma_w_z = tf.Variable(w_init.copy(), dtype="float32", name="ma_w_z")
         
         self._strides = [1,1,1]
         self._pad_mode = pad_mode

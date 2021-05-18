@@ -416,7 +416,6 @@ class Cnn3d(object):
         # ===== Concatenate and final convs ========
         conc_inp_fms = tf.concat(fms_from_paths_to_concat, axis=1)
         logits_no_bias = self.pathways[-1].apply(conc_inp_fms, mode, train_val_test, verbose, log)
-        self._final_logits = logits_no_bias
         # Softmax
         p_y_given_x = self.finalTargetLayer.apply(logits_no_bias, mode)
         
@@ -428,14 +427,14 @@ class Cnn3d(object):
         #assert len(inputs_per_pathw) == len(self.pathways) - 1
         
         #===== Apply High-Res path =========
-        input = inputs_per_pathw['x']
+        input = inputs_per_pathw['x_ma']
         out = self.pathways[0].apply_ma(input, mode, train_val_test, verbose, log)
         dims_outp_pathway_hr = out.shape
         fms_from_paths_to_concat = [out]
         
         # === Subsampled pathways =========
         for subpath_i in range(self.numSubsPaths):
-            input = inputs_per_pathw['x_sub_'+str(subpath_i)]
+            input = inputs_per_pathw['x_ma_sub_'+str(subpath_i)]
             this_pathway = self.pathways[subpath_i+1]
             out_lr = this_pathway.apply_ma(input, mode, train_val_test, verbose, log)
             # this creates essentially the "upsampling layer"
@@ -445,7 +444,6 @@ class Cnn3d(object):
         # ===== Concatenate and final convs ========
         conc_inp_fms = tf.concat(fms_from_paths_to_concat, axis=1)
         logits_no_bias = self.pathways[-1].apply_ma(conc_inp_fms, mode, train_val_test, verbose, log)
-        self._final_logits_ma = logits_no_bias
         # Softmax
         p_y_given_x = self.finalTargetLayer.apply_ma(logits_no_bias, mode)
         
@@ -488,5 +486,5 @@ class Cnn3d(object):
         return unpred_margin
     
     def get_final_logits(self):
-        return self._final_logits, self._final_logits_ma
+        return self.finalTargetLayer.get_logits()
     
