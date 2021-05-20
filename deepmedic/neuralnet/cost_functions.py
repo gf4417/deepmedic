@@ -47,7 +47,7 @@ def x_entr_mean_teacher( p_y_given_x_train, y_gt, weightPerClass, y_data, eps=1e
     relevant_batch = tf.cast( tf.reduce_sum(batches_to_include), "float32") * tf.cast( tf.reduce_prod( tf.shape(y_gt)[1:] ), "float32")
     batches_to_include = tf.reshape( batches_to_include, shape=[-1,1,1,1,1] ) 
     
-    return - (1./ relevant_batch) * tf.reduce_sum( weighted_log_p_y_given_x_train * y_one_hot * batches_to_include )
+    return - (1./ (relevant_batch + eps)) * tf.reduce_sum( weighted_log_p_y_given_x_train * y_one_hot * batches_to_include )
 
 
 def iou(p_y_given_x_train, y_gt, eps=1e-5):

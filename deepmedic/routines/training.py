@@ -69,6 +69,7 @@ def process_in_batches(log,
                 feeds_dict.update({feeds['x_sub_' + str(subs_path_i)]: x_batch_sub_path})
             feeds_dict.update({feeds['y_gt']: lbls_samples_per_path[min_idx_batch: max_idx_batch]})
             feeds_dict.update({feeds['y_bg_cl']: bg_classes_per_path[min_idx_batch: max_idx_batch]})
+
             # Training step. Returns a list containing the results of fetched ops.
             results_of_run = sessionTf.run(fetches=list_of_ops, feed_dict=feeds_dict)
 
