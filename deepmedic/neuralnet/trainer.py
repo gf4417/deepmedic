@@ -129,7 +129,8 @@ class Trainer(object):
             final_logits, final_logits_ma = self._net.get_final_logits()
             w_per_cl_vec = self._compute_w_per_class_vector_for_xentr(self._net.num_classes, y_gt)
             cost += self._losses_and_weights["m_teach"] * cfs.x_entr_mean_teacher(p_y_given_x, y_gt, w_per_cl_vec, y_bg_cl)
-            cost += self._losses_and_weights["m_teach"] * cfs.consistency_reg(final_logits, final_logits_ma)
+            if self._optimizer is not None and not self._optimizer.get_rampup():
+                cost += self._losses_and_weights["m_teach"] * cfs.consistency_reg(final_logits, final_logits_ma) 
 
             
         cost_L1_reg = self._L1_reg_weight * cfs.cost_L1(self._net.params_for_L1_L2_reg())

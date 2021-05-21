@@ -32,6 +32,9 @@ class Optimizer(object):
     def get_update_ops_given_cost(self, cost) :
         grads = self.get_grads_for_params_responsible(cost)
         return self.get_update_ops_given_grads(grads)
+
+    def get_rampup(self):
+        return self._rampup
     
     def end_rampup(self):
         self._rampup = False
@@ -249,10 +252,7 @@ class RmsPropOptimizerWithTeacher(Optimizer):
             updates.append( tf.compat.v1.assign(ref=param, value=w_new, validate_shape=True) )
             # Calculating Moving Average
             # TODO[gf4417] Change this to be an exponential moving avergae (perhaps compare the two)
-            if self._rampup:
-                alpha = self._ema_decay_during_rampup
-            else:
-                alpha = self._ema_decay_after_rampup
+            alpha = 0.99
             updates.append( tf.compat.v1.assign(ref=param_ma, value=param_ma*(alpha) + w_new*(1-alpha), validate_shape=True) )
             
         return updates
