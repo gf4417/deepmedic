@@ -180,7 +180,7 @@ class Cnn3d(object):
         log.print3("Done.")
         
         
-    def setup_ops_n_feeds_to_test(self, log, inp_plchldrs, p_y_given_x, indices_fms_per_pathtype_per_layer_to_save=None) :
+    def setup_ops_n_feeds_to_test(self, log, inp_plchldrs, p_y_given_x, inp_plchldrs_ma, p_y_given_x_ma, indices_fms_per_pathtype_per_layer_to_save=None) :
         log.print3("...Building the function for testing and visualisation of FMs...")
         
         listToReturnWithAllTheFmActivationsPerLayer = []
@@ -204,6 +204,12 @@ class Cnn3d(object):
         self._feeds_main['test']['x'] = inp_plchldrs['x']
         for subpath_i in range(self.numSubsPaths) : # if there are subsampled paths...
             self._feeds_main['test']['x_sub_'+str(subpath_i)] = inp_plchldrs['x_sub_'+str(subpath_i)]
+        
+        # Mean teacher
+        self._feeds_main['test']['x_ma'] = inp_plchldrs_ma['x_ma']
+        for subpath_i in range(self.numSubsPaths) : # if there are subsampled paths...
+            self._feeds_main['test']['x_ma_sub_'+str(subpath_i)] = inp_plchldrs_ma['x_ma_sub_'+str(subpath_i)]
+        self._ops_main['test']['pred_probs_ma'] = p_y_given_x_ma
         
         log.print3("Done.")
         

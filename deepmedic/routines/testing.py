@@ -209,6 +209,15 @@ def prepare_feeds_dict(feeds, channs_of_tiles_per_path):
             {feeds['x_sub_' + str(path_i)]: np.asarray(channs_of_tiles_per_path[1 + path_i], dtype='float32')})
 
     return feeds_dict
+
+def prepare_feeds_dict_ma(feeds, channs_of_tiles_per_path):
+    # TODO: Can we rename the input feeds so that they are easier to deal with?
+    feeds_dict = {feeds['x_ma']: np.asarray(channs_of_tiles_per_path[0], dtype='float32')}
+    for path_i in range(len(channs_of_tiles_per_path[1:])):
+        feeds_dict.update(
+            {feeds['x_ma_sub_' + str(path_i)]: np.asarray(channs_of_tiles_per_path[1 + path_i], dtype='float32')})
+
+    return feeds_dict
     
 
 def predict_whole_volume_by_tiling(log, sessionTf, cnn3d,
@@ -268,6 +277,102 @@ def predict_whole_volume_by_tiling(log, sessionTf, cnn3d,
         ops_to_fetch = cnn3d.get_main_ops('test')
         list_of_ops = [ops_to_fetch['pred_probs']] + ops_to_fetch['list_of_fms_per_layer']
         feeds_dict = prepare_feeds_dict(cnn3d.get_main_feeds('test'), channs_of_tiles_per_path)
+        # Forward pass
+        out_val_of_ops = sessionTf.run(fetches=list_of_ops, feed_dict=feeds_dict)
+        prob_maps_batch = out_val_of_ops[0]
+        fms_per_layer_and_path_for_batch = out_val_of_ops[1:] # [] if no FMs specified.
+        t_fwd_pass_subj += time.time() - t_fwd_start
+        
+        # ================ Construct probability maps (volumes) by Stitching  ====================
+        # Stitch predictions for tiles of this batch, to create the probability maps for whole volume.
+        # Each prediction for a tile needs to be placed in the correct location in the volume.
+        (idx_next_tile_in_pred_vols,
+         prob_maps_vols) = stitch_predicted_to_prob_maps(prob_maps_vols,
+                                                         idx_next_tile_in_pred_vols,
+                                                         prob_maps_batch,
+                                                         batchsize,
+                                                         slice_coords_all_tiles,
+                                                         unpred_margin,
+                                                         stride_of_tiling)
+
+        # ============== Construct feature maps (volumes) by Stitching =====================
+        if save_fms_flag:
+            (idx_next_tile_in_fm_vols,
+             array_fms_to_save) = stitch_predicted_to_fms(array_fms_to_save,
+                                                          idx_next_tile_in_fm_vols,
+                                                          fms_per_layer_and_path_for_batch,
+                                                          batchsize,
+                                                          slice_coords_all_tiles,
+                                                          unpred_margin,
+                                                          stride_of_tiling,
+                                                          outp_pred_dims,
+                                                          cnn3d.pathways,
+                                                          idxs_fms_to_save)
+        print_progress_step_test(log, n_batches, batch_i + 1, batchsize, n_tiles_for_subj)
+        # Done with batch
+        
+    log.print3("TIMING: Segmentation of subject: [Forward Pass:] {0:.2f}".format(t_fwd_pass_subj) + " secs.")
+
+    return prob_maps_vols, array_fms_to_save
+
+def predict_whole_volume_by_tiling_ma(log, sessionTf, cnn3d,
+                                   channels, roi_mask, inp_shapes_per_path, unpred_margin,
+                                   batchsize, save_fms_flag, idxs_fms_to_save):
+    # One of the main routines. Segment whole volume tile-by-tile.
+    
+    # For tiling the volume: Stride is how much I move in each dimension to get the next tile.
+    # I stride exactly the number of voxels that are predicted per forward pass.
+    outp_pred_dims = cnn3d.calc_outp_dims_given_inp(inp_shapes_per_path[0])
+    stride_of_tiling = outp_pred_dims # [str-x, str-y, str-z]
+    # Find the total number of feature maps that will be created:
+    # NOTE: save_fms_flag should contain an entry per pathwayType, even if just [].
+    # If not [], the list should contain one entry per layer of the pathway, even if just [].
+    # The layer entries, if not [], they should have to integers, lower and upper FM to visualise.
+    n_fms_to_save = calc_num_fms_to_save(cnn3d.pathways, idxs_fms_to_save) if save_fms_flag else 0
+    
+    # Arrays that will be returned.
+    inp_chan_dims = list(channels.shape[1:]) # Dimensions of (padded) input channels.
+    # The main output. Predicted probability-maps for the whole volume, one per class.
+    # Will be constructed by stitching together the predictions from each tile.
+    prob_maps_vols = np.zeros([cnn3d.num_classes]+inp_chan_dims, dtype="float32")
+    # create the big array that will hold all the fms (for feature extraction).
+    array_fms_to_save = np.zeros([n_fms_to_save] + inp_chan_dims, dtype="float32") if save_fms_flag else None
+
+    # Tile the image and get all slices of the tiles that it fully breaks down to.
+    slice_coords_all_tiles = get_slice_coords_of_all_img_tiles(log,
+                                                               inp_shapes_per_path[0],
+                                                               stride_of_tiling,
+                                                               batchsize,
+                                                               inp_chan_dims,
+                                                               roi_mask)
+
+    n_tiles_for_subj = len(slice_coords_all_tiles)
+    log.print3("Ready to make predictions for all image segments (parts).")
+    log.print3("Total number of Segments to process:" + str(n_tiles_for_subj))
+    
+    idx_next_tile_in_pred_vols = 0
+    idx_next_tile_in_fm_vols = 0
+    n_batches = n_tiles_for_subj // batchsize
+    t_fwd_pass_subj = 0 # time it took for forward pass over all tiles of subject.
+    print_progress_step_test(log, n_batches, 0, batchsize, n_tiles_for_subj)    
+    for batch_i in range(n_batches):
+        
+        # Extract data for the segments of this batch.
+        # ( I could modularize extractDataOfASegmentFromImagesUsingSampledSliceCoords()
+        # of training and use it here as well. )
+        slice_coords_of_tiles_batch = slice_coords_all_tiles[batch_i * batchsize: (batch_i + 1) * batchsize]
+        channs_of_tiles_per_path = extractSegmentsGivenSliceCoords(cnn3d,
+                                                                   slice_coords_of_tiles_batch,
+                                                                   channels,
+                                                                   inp_shapes_per_path,
+                                                                   outp_pred_dims)
+
+        # ============================== Perform forward pass ====================================
+        t_fwd_start = time.time()
+        ops_to_fetch = cnn3d.get_main_ops('test')
+        # TODO[gf4417] : need to update to take feature maps from mean teacher.
+        list_of_ops = [ops_to_fetch['pred_probs_ma']] + ops_to_fetch['list_of_fms_per_layer']
+        feeds_dict = prepare_feeds_dict_ma(cnn3d.get_main_feeds('test'), channs_of_tiles_per_path)
         # Forward pass
         out_val_of_ops = sessionTf.run(fetches=list_of_ops, feed_dict=feeds_dict)
         prob_maps_batch = out_val_of_ops[0]
@@ -611,6 +716,151 @@ def inference_on_whole_volumes(sessionTf,
     if paths_to_lbls_per_subj is not None and n_subjects > 0:  # GT was given. Calculate.
         mean_metrics = calc_stats_of_metrics(metrics_per_subj_per_c, NA_PATTERN)
         report_mean_metrics(log, mean_metrics, NA_PATTERN, val_test_print)
+
+    log.print3("TIMING: " + val_test_print + " process lasted: {0:.2f}".format(time.time() - t_start) + " secs.")
+    log.print3("##########################################################################################")
+    log.print3("#\t\t  Finished full Segmentation of " + str(val_test_print) + " subjects   \t\t\t#")
+    log.print3("##########################################################################################")
+
+    return mean_metrics
+
+# Main routine for testing.
+def inference_on_whole_volumes_ma(sessionTf,
+                               cnn3d,
+                               log,
+                               val_or_test,
+                               savePredictedSegmAndProbsDict,
+                               paths_per_chan_per_subj,
+                               paths_to_lbls_per_subj,
+                               paths_to_masks_per_subj,
+                               namesForSavingSegmAndProbs,
+                               suffixForSegmAndProbsDict,
+                               # Hyper parameters
+                               batchsize,
+                               # Data compatibility checks
+                               run_input_checks,
+                               # Pre-Processing
+                               pad_input,
+                               norm_prms,
+                               # Saving feature maps
+                               save_fms_flag,
+                               idxs_fms_to_save,
+                               namesForSavingFms,
+                               # Sampling
+                               inp_shapes_per_path):
+    # save_fms_flag: should contain an entry per pathwayType, even if just []...
+    #       ... If not [], the list should contain one entry per layer of the pathway, even if just [].
+    #       ... The layer entries, if not [], they should have to integers, lower and upper FM to visualise.
+    #       ... Excluding the highest index.
+
+    val_test_print = "Validation" if val_or_test == "val" else "Testing"
+    
+    log.print3("")
+    log.print3("##########################################################################################")
+    log.print3("#\t\t  Starting full Segmentation of " + str(val_test_print) + " subjects   \t\t\t#")
+    log.print3("##########################################################################################")
+
+    t_start = time.time()
+
+    NA_PATTERN = AccuracyMonitorForEpSegm.NA_PATTERN
+    n_classes = cnn3d.num_classes
+    n_subjects = len(paths_per_chan_per_subj)
+    unpred_margin = cnn3d.calc_unpredicted_margin(inp_shapes_per_path[0])
+    # One dice score for whole foreground (0) AND one for each actual class
+    # Dice1 - AllpredictedLes/AllLesions
+    # Dice2 - predictedInsideRoiMask/AllLesions
+    # Dice3 - predictedInsideRoiMask/ LesionsInsideRoiMask (for comparisons)
+    # Each is a list of dimensions: n_subjects X n_classes
+    # initialization of the lists (values will be replaced)
+    metrics_per_subj_per_c = {"dice1": [[-1] * n_classes for _ in range(n_subjects)],
+                              "dice2": [[-1] * n_classes for _ in range(n_subjects)],
+                              "dice3": [[-1] * n_classes for _ in range(n_subjects)]}
+    
+    for subj_i in range(n_subjects):
+        log.print3("")
+        log.print3("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        log.print3("~~~~~~~~\t Segmenting subject with index #" + str(subj_i) + " \t~~~~~~~~")
+        
+        (channels,  # nparray [channels,dim0,dim1,dim2]
+         gt_lbl_img,
+         roi_mask,
+         _, 
+         _) = load_imgs_of_subject(log, "",
+                                   subj_i,
+                                   paths_per_chan_per_subj,
+                                   paths_to_lbls_per_subj,
+                                   None, # weightmaps, not for test
+                                   paths_to_masks_per_subj)
+        (channels,
+        gt_lbl_img,
+        roi_mask,
+        _,
+        pad_left_right_per_axis) = preproc_imgs_of_subj(log, "",
+                                                        channels, gt_lbl_img, roi_mask, None,
+                                                        run_input_checks, n_classes, # checks
+                                                        pad_input, unpred_margin,
+                                                        norm_prms)
+    
+        # ============== Augmentation ==================
+        # TODO: Add augmentation here. And aggregate results after prediction of the whole volumes
+        
+        # ============== Predict whole volume ==================
+        # array_fms_to_save will be None if not saving them.
+        (prob_maps_vols,
+         array_fms_to_save) = predict_whole_volume_by_tiling_ma(log, sessionTf, cnn3d,
+                                                             channels, roi_mask, inp_shapes_per_path, unpred_margin, 
+                                                             batchsize, save_fms_flag, idxs_fms_to_save )
+        
+        # ========================== Post-Processing =========================
+        pred_seg = np.argmax(prob_maps_vols, axis=0)  # The segmentation.
+
+        # Unpad all images.        
+        pred_seg_u          = unpad_img(pred_seg, pad_input, pad_left_right_per_axis)
+        gt_lbl_u            = unpad_img(gt_lbl_img, pad_input, pad_left_right_per_axis)
+        roi_mask_u          = unpad_img(roi_mask, pad_input, pad_left_right_per_axis)
+        prob_maps_vols_u    = unpad_list_of_imgs(prob_maps_vols, pad_input, pad_left_right_per_axis)
+        array_fms_to_save_u = unpad_list_of_imgs(array_fms_to_save, pad_input, pad_left_right_per_axis)
+        
+        # Poster-process outside the ROI, e.g. by deleting any predictions outside it.
+        pred_seg_u_in_roi = pred_seg_u if roi_mask_u is None else pred_seg_u * roi_mask_u
+        gt_lbl_u_in_roi = gt_lbl_u if (gt_lbl_u is None or roi_mask_u is None) else gt_lbl_u * roi_mask_u
+        for c in range(n_classes):
+            prob_map = prob_maps_vols_u[c]
+            prob_maps_vols_u[c] = prob_map if roi_mask_u is None else prob_map * roi_mask_u
+        prob_maps_vols_u_in_roi = prob_maps_vols_u # Just to follow naming convention for clarity.
+        
+        # ======================= Save Output Volumes ========================
+        # Save predicted segmentations
+        save_pred_seg(pred_seg_u_in_roi,
+                      savePredictedSegmAndProbsDict["segm"], suffixForSegmAndProbsDict["segm"] + "_ma",
+                      namesForSavingSegmAndProbs, paths_per_chan_per_subj, subj_i, log)
+
+        # Save probability maps
+        save_prob_maps(prob_maps_vols_u_in_roi,
+                       savePredictedSegmAndProbsDict["prob"], suffixForSegmAndProbsDict["prob"] + "_ma",
+                       namesForSavingSegmAndProbs, paths_per_chan_per_subj, subj_i, log)
+
+        # Save feature maps
+        # TODO[gf4417] : Implement this to work for moving avergae results
+        # save_fms_individual(save_fms_flag, array_fms_to_save_u, cnn3d.pathways, idxs_fms_to_save,
+        #                     namesForSavingFms, paths_per_chan_per_subj, subj_i, log)
+        
+        
+        # ================= Evaluate DSC for this subject ========================
+        if paths_to_lbls_per_subj is not None:  # GT was provided.
+            metrics_per_subj_per_c = calc_metrics_for_subject(metrics_per_subj_per_c, subj_i,
+                                                              pred_seg_u, pred_seg_u_in_roi,
+                                                              gt_lbl_u, gt_lbl_u_in_roi,
+                                                              n_classes, NA_PATTERN)
+            report_metrics_for_subject(log, metrics_per_subj_per_c, subj_i, NA_PATTERN, val_test_print)
+            
+        # Done with subject.
+        
+    # ==================== Report average Dice Coefficient over all subjects ==================
+    mean_metrics = None # To return something even if ground truth has not been given (in testing)
+    if paths_to_lbls_per_subj is not None and n_subjects > 0:  # GT was given. Calculate.
+        mean_metrics = calc_stats_of_metrics(metrics_per_subj_per_c, NA_PATTERN)
+        report_mean_metrics(log, mean_metrics, NA_PATTERN, val_test_print + "_MA")
 
     log.print3("TIMING: " + val_test_print + " process lasted: {0:.2f}".format(time.time() - t_start) + " secs.")
     log.print3("##########################################################################################")

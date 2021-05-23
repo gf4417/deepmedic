@@ -16,6 +16,7 @@ from deepmedic.frontEnd.configParsing.testSessionParams import TestSessionParame
 from deepmedic.frontEnd.sessHelpers import make_folders_for_test_session, handle_exception_tf_restore
 from deepmedic.neuralnet.cnn3d import Cnn3d
 from deepmedic.routines.testing import inference_on_whole_volumes
+from deepmedic.routines.testing import inference_on_whole_volumes_ma
 
 
 class TestSession(Session):
@@ -90,11 +91,15 @@ class TestSession(Session):
                     cnn3d.make_cnn_model(*model_params.get_args_for_arch())  # Creates network's graph (no optimizer)
                     inp_plchldrs, inp_shapes_per_path = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('test'), 'test')
                     p_y_given_x = cnn3d.apply(inp_plchldrs, 'infer', 'test', verbose=True, log=self._log)
+
+                    # Mean Teacher Case
+                    inp_plchldrs_ma, inp_shapes_per_path_train_ma = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('test'), 'teach')
+                    p_y_given_x_ma  = cnn3d.apply_ma(inp_plchldrs_ma, 'infer', 'test', verbose=True, log=self._log)
                     
             self._log.print3("=========== Compiling the Testing Function ============")
             self._log.print3("=======================================================\n")
             
-            cnn3d.setup_ops_n_feeds_to_test(self._log, inp_plchldrs, p_y_given_x, self._params.inds_fms_per_pathtype_per_layer_to_save)
+            cnn3d.setup_ops_n_feeds_to_test(self._log, inp_plchldrs, p_y_given_x, inp_plchldrs_ma, p_y_given_x_ma, self._params.inds_fms_per_pathtype_per_layer_to_save)
             # Create the saver
             coll_vars_net = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.GLOBAL_VARIABLES, scope="net")
             saver_net = tf.compat.v1.train.Saver(var_list=coll_vars_net)  # saver_net would suffice
@@ -127,6 +132,10 @@ class TestSession(Session):
             self._log.print3("======================================================")
             
             res_code = inference_on_whole_volumes(*([sessionTf, cnn3d] +
+                                                    self._params.get_args_for_testing() +
+                                                    [inp_shapes_per_path]))
+            
+            inference_on_whole_volumes_ma(*([sessionTf, cnn3d] +
                                                     self._params.get_args_for_testing() +
                                                     [inp_shapes_per_path]))
         
