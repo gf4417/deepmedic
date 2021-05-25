@@ -109,6 +109,10 @@ class TrainSession(Session):
                     inp_plchldrs_train_ma, inp_shapes_per_path_train_ma = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('train'), 'teach')
                     p_y_given_x_train_ma  = cnn3d.apply_ma(inp_plchldrs_train_ma, 'train', 'train', verbose=True, log=self._log)
 
+                    # Mean Teacher Case
+                    inp_plchldrs_test_ma, inp_shapes_per_path_train_ma = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('test'), 'teach')
+                    p_y_given_x_test_ma  = cnn3d.apply_ma(inp_plchldrs_test_ma, 'infer', 'test', verbose=True, log=self._log)
+
                     # I have now created the CNN graph. But not yet the Optimizer's graph.
                     inp_plchldrs_train, inp_shapes_per_path_train = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('train'), 'train')
                     inp_plchldrs_val, inp_shapes_per_path_val = cnn3d.create_inp_plchldrs(model_params.get_inp_dims_hr_path('val'), 'val')
@@ -149,7 +153,7 @@ class TrainSession(Session):
 
             self._log.print3("=========== Compiling the Testing Function ============")
             # For validation with full segmentation
-            cnn3d.setup_ops_n_feeds_to_test(self._log, inp_plchldrs_test, p_y_given_x_test, inp_plchldrs_train_ma, p_y_given_x_train_ma, self._params.inds_fms_per_pathtype_per_layer_to_save)
+            cnn3d.setup_ops_n_feeds_to_test(self._log, inp_plchldrs_test, p_y_given_x_test, inp_plchldrs_test_ma, p_y_given_x_test_ma, self._params.inds_fms_per_pathtype_per_layer_to_save)
 
             # Create the savers
             saver_all = tf.compat.v1.train.Saver()  # Will be used during training for saving everything.

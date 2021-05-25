@@ -245,6 +245,36 @@ class AccuracyMonitorForEpSegm(object):
 
         self.log.print3('Logged metrics: ' + str(list(metrics_dict.keys())))
         self.log.print3('======================================================')
+    
+    def report_metrics_whole_vols_ma(self, mean_metrics):
+        # mean_metrics: 
+        # metrics_dict_list: list that holds one element per class, [ elem-class0, elem-class1, .... ]
+        #                    Each element is a dictionary of metrics for the class.
+        #                    E.g. elem-class0 = {'dice1': value, 'dice2': value, dice3': value}
+        self.log.print3('=============== LOGGING TO TENSORBOARD ===============')
+        if self.tensorboard_logger is None:
+            self.log.print3('Tensorboard logging not activated. Skipping...')
+            self.log.print3('======================================================')
+            return
+        
+        self.log.print3('Logging validation metrics from segmentation of whole validation volumes.')
+        self.log.print3('Epoch: ' + str(self.epoch))
+        step_num = self.numberOfSubepochsPerEpoch - 1 + (self.epoch * self.numberOfSubepochsPerEpoch)
+        self.log.print3('Step number (index of subepoch since start): ' + str(step_num))
+
+        # Report mean metrics for each class_i:
+        for class_i in range(self.numberOfClasses):
+            # the keys for the below are defined in testing.py routine.
+            metrics_dict = {'whole scans: Dice1 (Prediction VS Truth)': mean_metrics['dice1'][class_i],
+                            'whole scans: Dice2 (Prediction within ROI mask VS Truth)': mean_metrics['dice2'][class_i],
+                            'whole scans: Dice3 (Prediction VS Truth, both within ROI mask)': mean_metrics['dice3'][class_i]
+                            }
+            class_string = 'Class-' + str(class_i)
+            self.log_to_tensorboard(metrics_dict, class_string, step_num)
+
+        self.log.print3("Logging metrics for Moving Average...")
+        self.log.print3('Logged metrics: ' + str(list(metrics_dict.keys())))
+        self.log.print3('======================================================')
         
         
     def report_metrics_samples_ep(self) :

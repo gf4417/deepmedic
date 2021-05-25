@@ -46,6 +46,7 @@ class Trainer(object):
         # Costs
         self._losses_and_weights = losses_and_weights  # "L", "D" or "J"
         self._total_cost = None # This is set-up by calling self.setup_costs(...)
+        self._consistency_cost = None
         # Params for costs
         self._reweight_classes_in_cost = reweight_classes_in_cost
         
@@ -129,8 +130,10 @@ class Trainer(object):
             final_logits, final_logits_ma = self._net.get_final_logits()
             w_per_cl_vec = self._compute_w_per_class_vector_for_xentr(self._net.num_classes, y_gt)
             cost += self._losses_and_weights["m_teach"] * cfs.x_entr_mean_teacher(p_y_given_x, y_gt, w_per_cl_vec, y_bg_cl)
+            self._consistency_cost = 0
             if self._optimizer is not None and not self._optimizer.get_rampup():
-                cost += self._losses_and_weights["m_teach"] * cfs.consistency_reg(final_logits, final_logits_ma) 
+                self._consistency_cost = self._losses_and_weights["m_teach"] * cfs.consistency_reg(final_logits, final_logits_ma) 
+                cost += self._consistency_cost
 
             
         cost_L1_reg = self._L1_reg_weight * cfs.cost_L1(self._net.params_for_L1_L2_reg())
@@ -208,6 +211,12 @@ class Trainer(object):
     def get_total_cost(self):
         # Run only after: self.setup_costs(...)
         return self._total_cost
+    
+    def get_consistency_cost(self):
+        if self._consistency_cost is None:
+            return 0
+        else:
+            return self._consistency_cost
     
     # Called from within cnn3d.setup_ops_n_feeds_to_train()
     def get_param_updates_wrt_total_cost(self):

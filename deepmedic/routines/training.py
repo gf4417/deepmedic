@@ -19,6 +19,7 @@ from deepmedic.logging.accuracyMonitor import AccuracyMonitorForEpSegm
 from deepmedic.neuralnet.wrappers import CnnWrapperForSampling
 from deepmedic.dataManagement.sampling import get_samples_for_subepoch
 from deepmedic.routines.testing import inference_on_whole_volumes
+from deepmedic.routines.testing import inference_on_whole_volumes_ma
 
 from deepmedic.logging.utils import datetime_now_str, print_progress_step_tr_val
 
@@ -458,7 +459,33 @@ def do_training(sessionTf,
                                                                          namesForSavingFms,
                                                                          inp_shapes_per_path_test)
                 
+                # TODO[gf4417] : Add this in a cleaner way for moving average results.
+                mean_metrics_val_whole_vols_ma = inference_on_whole_volumes_ma(sessionTf,
+                                                                         cnn3d,
+                                                                         log,
+                                                                         "val",
+                                                                         savePredictedSegmAndProbsDict,
+                                                                         paths_per_chan_per_subj_val,
+                                                                         paths_to_lbls_per_subj_val,
+                                                                         paths_to_masks_per_subj_val,
+                                                                         namesForSavingSegmAndProbs,
+                                                                         suffixForSegmAndProbsDict,
+                                                                         # Hyper parameters
+                                                                         batchsize_val_whole,
+                                                                         # Data compatibility checks
+                                                                         run_input_checks,
+                                                                         # Pre-Processing
+                                                                         pad_input,
+                                                                         norm_prms,
+                                                                         # Saving feature maps
+                                                                         save_fms_flag,
+                                                                         idxs_fms_to_save,
+                                                                         namesForSavingFms,
+                                                                         inp_shapes_per_path_test)
+
                 acc_monitor_ep_val.report_metrics_whole_vols(mean_metrics_val_whole_vols)
+                
+                acc_monitor_ep_val.report_metrics_whole_vols_ma(mean_metrics_val_whole_vols_ma)
 
             del acc_monitor_ep_tr
             del acc_monitor_ep_val
