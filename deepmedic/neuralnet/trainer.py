@@ -134,6 +134,15 @@ class Trainer(object):
             if self._optimizer is not None and not self._optimizer.get_rampup():
                 self._consistency_cost = self._losses_and_weights["m_teach"] * cfs.consistency_reg(final_logits, final_logits_ma) 
                 cost += self._consistency_cost
+        if "m_teach_ace" in self._losses_and_weights and self._losses_and_weights["m_teach_ace"] is not None:
+            log.print3("COST: Using mean teacher: " +str(self._losses_and_weights["m_teach_ace"]))
+            # TODO[gf4417] Implement mean teacher cost function with consistency regularisation.
+            final_logits, final_logits_ma = self._net.get_final_logits()
+            cost += self._losses_and_weights["m_teach_ace"] * cfs.ace(p_y_given_x, y_gt, y_bg_cl)
+            self._consistency_cost = 0
+            if self._optimizer is not None and not self._optimizer.get_rampup():
+                self._consistency_cost = self._losses_and_weights["m_teach_ace"] * cfs.consistency_reg(final_logits, final_logits_ma) 
+                cost += self._consistency_cost
 
             
         cost_L1_reg = self._L1_reg_weight * cfs.cost_L1(self._net.params_for_L1_L2_reg())

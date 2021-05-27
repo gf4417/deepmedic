@@ -517,8 +517,9 @@ class TrainSessionParameters(object):
                                                                                                        "dsc": None,
                                                                                                        "ace": None,
                                                                                                        "ace_w": None,
-                                                                                                       "m_teach": None}
-        assert True in [self.losses_and_weights[k] is not None for k in ["xentr", "iou", "dsc", "ace", "ace_w", "m_teach"]]
+                                                                                                       "m_teach": None,
+                                                                                                       "m_teach_ace": None}
+        assert True in [self.losses_and_weights[k] is not None for k in ["xentr", "iou", "dsc", "ace", "ace_w", "m_teach", "m_teach_ace"]]
 
         self._backwards_compat_with_deprecated_cfg(cfg)
 
