@@ -119,7 +119,7 @@ def ace(p_y_given_x_train, y_gt, y_data=None, eps=1e-5, weightPerClass=None):
 def consistency_reg(p_y_given_x_train, p_y_given_x_ma_train):
     # TODO[gf4417] Explore KL divergence etc.
     # calculate the MSE
-    mse = tf.reduce_mean((p_y_given_x_train - p_y_given_x_ma_train) ** 2, -1)
+    mse = tf.reduce_mean((p_y_given_x_train - p_y_given_x_ma_train) ** 2)
     return mse
 
 def cost_L1(prms):

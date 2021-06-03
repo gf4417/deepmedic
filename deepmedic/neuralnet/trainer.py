@@ -143,6 +143,25 @@ class Trainer(object):
             if self._optimizer is not None and not self._optimizer.get_rampup():
                 self._consistency_cost = self._losses_and_weights["m_teach_ace"] * cfs.consistency_reg(final_logits, final_logits_ma) 
                 cost += self._consistency_cost
+        if "m_teach_a" in self._losses_and_weights and "m_teach_c" in self._losses_and_weights and self._losses_and_weights["m_teach_a"] is not None and self._losses_and_weights["m_teach_c"] is not None:
+            log.print3("COST: Using mean teacher: " +str(self._losses_and_weights["m_teach_ace"]))
+            # TODO[gf4417] Implement mean teacher cost function with consistency regularisation.
+            final_logits, final_logits_ma = self._net.get_final_logits()
+            cost += self._losses_and_weights["m_teach_a"] * cfs.ace(p_y_given_x, y_gt, y_bg_cl)
+            self._consistency_cost = 0 
+            #self._consistency_cost = self._losses_and_weights["m_teach_c"] * tf.cast(tf.greater_equal(self._num_epochs_trained_tfv, 8), "float32") * cfs.consistency_reg(final_logits, final_logits_ma) 
+            self._consistency_cost = self._losses_and_weights["m_teach_c"] * tf.minimum(1., tf.maximum(0. ,(tf.cast(self._num_epochs_trained_tfv, "float32")-3.)/2.)) * cfs.consistency_reg(final_logits, final_logits_ma)           
+            cost += self._consistency_cost
+        if "m_teach_ce" in self._losses_and_weights and "m_teach_c" in self._losses_and_weights and self._losses_and_weights["m_teach_ce"] is not None and self._losses_and_weights["m_teach_c"] is not None:
+            log.print3("COST: Using mean teacher: " +str(self._losses_and_weights["m_teach_ace"]))
+            # TODO[gf4417] Implement mean teacher cost function with consistency regularisation.
+            final_logits, final_logits_ma = self._net.get_final_logits()
+             w_per_cl_vec = self._compute_w_per_class_vector_for_xentr(self._net.num_classes, y_gt)
+            cost += self._losses_and_weights["m_teach_ce"] * cfs.x_entr_mean_teacher(p_y_given_x, y_gt, w_per_cl_vec, y_bg_cl)
+            self._consistency_cost = 0 
+            #self._consistency_cost = self._losses_and_weights["m_teach_c"] * tf.cast(tf.greater_equal(self._num_epochs_trained_tfv, 8), "float32") * cfs.consistency_reg(final_logits, final_logits_ma) 
+            self._consistency_cost = self._losses_and_weights["m_teach_c"] * tf.minimum(1., tf.maximum(0. ,(tf.cast(self._num_epochs_trained_tfv, "float32")-3.)/2.)) * cfs.consistency_reg(final_logits, final_logits_ma)           
+            cost += self._consistency_cost
 
             
         cost_L1_reg = self._L1_reg_weight * cfs.cost_L1(self._net.params_for_L1_L2_reg())
@@ -445,7 +464,7 @@ class Trainer(object):
             sessionTf.run( fetches=self._op_assign_epoch_with_top_mean_val_acc_tvf, feed_dict={ self._tf_plchld_int32: num_epochs_trained } )
             
     def end_optimizer_rampup(self):
-        self._optimizer.end_rampup()
+        return self._optimizer.end_rampup()
     
 
         

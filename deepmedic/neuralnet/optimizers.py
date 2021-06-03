@@ -38,6 +38,7 @@ class Optimizer(object):
     
     def end_rampup(self):
         self._rampup = False
+        return self._rampup
     
 class SgdOptimizer(Optimizer):
     def __init__(self,

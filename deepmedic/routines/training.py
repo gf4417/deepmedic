@@ -77,6 +77,8 @@ def process_in_batches(log,
             cnn3d.update_arrays_of_bn_moving_avg(sessionTf)  # I should put this inside the model.
 
             cost_this_batch = results_of_run[0]
+            # print("cost_this_batch = " + str(cost_this_batch))
+            # print("cost_this_batch.shape = " + str(cost_this_batch.shape))
             list_RpRnPpPn_per_class = results_of_run[1:-1]  # [-1] is from updates_grouped_op, returns nothing
             
         else:  # validation
@@ -261,8 +263,8 @@ def do_training(sessionTf,
             # End the ramp up period
             rampup = True
             if epoch / n_epochs >= perc_total_epochs_for_rampup:
-                trainer.end_optimizer_rampup()
-                rampup = False
+                rampup = trainer.end_optimizer_rampup()
+                #rampup = False
 
             acc_monitor_ep_tr = AccuracyMonitorForEpSegm(log, 0,
                                                          n_eps_trained_model,
